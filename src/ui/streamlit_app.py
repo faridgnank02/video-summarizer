@@ -18,8 +18,11 @@ try:
     from data.ingestion import DataIngestion, VideoData
     from data.preprocessing import TextPreprocessor
     from models.model_manager import ModelManager, ModelType, SummaryLength
+    from monitoring.metrics import MetricsCollector
+    from evaluation.evaluator import SummaryEvaluator
 except ImportError as e:
     st.error(f"Erreur d'importation des modules: {e}")
+    st.info("Assurez-vous que toutes les dépendances sont installées")
     st.stop()
 
 # Configuration de la page
@@ -42,6 +45,15 @@ class VideoSummarizerApp:
         self.ingestion = DataIngestion()
         self.preprocessor = TextPreprocessor()
         self.model_manager = None
+        
+        # Initialiser le monitoring et l'évaluation
+        try:
+            self.metrics_collector = MetricsCollector()
+            self.evaluator = SummaryEvaluator(load_models=False)  # Chargement à la demande
+        except Exception as e:
+            st.warning(f"Monitoring/Évaluation non disponibles: {e}")
+            self.metrics_collector = None
+            self.evaluator = None
         
         # État de l'application
         if 'summary_history' not in st.session_state:
@@ -97,6 +109,17 @@ class VideoSummarizerApp:
             ["Auto-détection", "Français", "Anglais"],
             help="Langue du résumé généré"
         )
+        
+        # Monitoring système
+        if self.metrics_collector:
+            with st.sidebar.expander("📊 Monitoring Système"):
+                try:
+                    metrics = self.metrics_collector._collect_system_metrics()
+                    st.metric("💻 CPU", f"{metrics.cpu_percent:.1f}%")
+                    st.metric("🧠 Mémoire", f"{metrics.memory_percent:.1f}%")
+                    st.metric("💾 Disque", f"{metrics.disk_usage_percent:.1f}%")
+                except Exception as e:
+                    st.warning("Métriques indisponibles")
         
         # Informations sur les modèles
         with st.sidebar.expander("ℹ️ Informations sur les modèles"):
@@ -274,6 +297,45 @@ class VideoSummarizerApp:
                 st.markdown(f"**{video_data.title}**")
                 st.write(summary)
                 
+                # Évaluation automatique du résumé
+                evaluation_data = None
+                if self.evaluator:
+                    try:
+                        with st.spinner("🎯 Évaluation de la qualité..."):
+                            # Charger les modèles d'évaluation si nécessaire
+                            if not hasattr(self.evaluator, 'sentence_model') or self.evaluator.sentence_model is None:
+                                self.evaluator._load_models()
+                            
+                            evaluation = self.evaluator.evaluate_summary(
+                                original_text=processed_data.text,
+                                generated_summary=summary,
+                                model_name=model_type
+                            )
+                            
+                            if evaluation and hasattr(evaluation, 'metrics'):
+                                evaluation_data = evaluation.metrics
+                                
+                                # Afficher les métriques d'évaluation
+                                st.subheader("🎯 Évaluation de la Qualité")
+                                
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.metric("📊 Score Global", f"{evaluation_data.overall_score:.3f}")
+                                with col2:
+                                    st.metric("🔗 Similarité", f"{evaluation_data.semantic_similarity:.3f}")
+                                with col3:
+                                    st.metric("📏 Cohérence", f"{evaluation_data.coherence_score:.3f}")
+                                with col4:
+                                    st.metric("📖 Lisibilité", f"{evaluation_data.readability_score:.3f}")
+                                
+                                # Recommandations
+                                if hasattr(evaluation, 'recommendations') and evaluation.recommendations:
+                                    with st.expander("💡 Recommandations d'amélioration"):
+                                        for rec in evaluation.recommendations[:3]:  # Top 3 recommandations
+                                            st.write(f"• {rec}")
+                    except Exception as e:
+                        st.warning(f"Évaluation indisponible: {e}")
+                
                 # Sauvegarder dans l'historique
                 summary_data = {
                     'title': video_data.title,
@@ -281,7 +343,8 @@ class VideoSummarizerApp:
                     'model_type': model_type,
                     'length': summary_length,
                     'processing_time': processing_time,
-                    'timestamp': time.strftime("%Y-%m-%d %H:%M:%S")
+                    'timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
+                    'evaluation': evaluation_data.__dict__ if evaluation_data else None
                 }
                 st.session_state.summary_history.append(summary_data)
                 
@@ -338,11 +401,36 @@ Résumé:
             st.header("📚 Historique des Résumés")
             
             for i, item in enumerate(reversed(st.session_state.summary_history)):
-                with st.expander(f"📄 {item['title']} - {item['timestamp']}"):
+                # Icône selon la qualité (si évaluation disponible)
+                quality_icon = "📄"
+                if item.get('evaluation'):
+                    score = item['evaluation'].get('overall_score', 0)
+                    if score >= 0.8:
+                        quality_icon = "🏆"
+                    elif score >= 0.6:
+                        quality_icon = "✅"
+                    elif score >= 0.4:
+                        quality_icon = "🟡"
+                    else:
+                        quality_icon = "🔴"
+                
+                with st.expander(f"{quality_icon} {item['title']} - {item['timestamp']}"):
                     col1, col2 = st.columns([3, 1])
                     
                     with col1:
                         st.write(item['summary'])
+                        
+                        # Afficher l'évaluation si disponible
+                        if item.get('evaluation'):
+                            eval_data = item['evaluation']
+                            st.markdown("**📊 Qualité:**")
+                            sub_col1, sub_col2, sub_col3 = st.columns(3)
+                            with sub_col1:
+                                st.write(f"Score: {eval_data.get('overall_score', 0):.3f}")
+                            with sub_col2:
+                                st.write(f"Similarité: {eval_data.get('semantic_similarity', 0):.3f}")
+                            with sub_col3:
+                                st.write(f"Cohérence: {eval_data.get('coherence_score', 0):.3f}")
                     
                     with col2:
                         st.metric("Modèle", item['model_type'])

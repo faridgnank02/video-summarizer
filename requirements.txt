@@ -1,60 +1,38 @@
-# Machine Learning and Deep Learning
+# Video Summarizer - Dépendances essentielles
+
+# Machine Learning et Deep Learning
 torch>=2.0.0
 transformers>=4.30.0
-datasets>=2.12.0
-accelerate>=0.20.0
 scikit-learn>=1.3.0
 
-# NLP and Text Processing
+# NLP et Traitement de Texte
 spacy>=3.6.0
-nltk>=3.8.1
+sentence-transformers>=2.2.0
 rouge-score>=0.1.2
-rouge>=1.0.1
-bert-extractive-summarizer>=0.10.1
+nltk>=3.8.1
 
-# Web Framework and UI
+# Interface Utilisateur
 streamlit>=1.25.0
-fastapi>=0.100.0
-uvicorn>=0.22.0
-gradio>=3.35.0
 
-# Video and Audio Processing
+# Traitement Vidéo et Audio  
 youtube-transcript-api>=0.6.0
-whisper>=0.4.0
 yt-dlp>=2023.7.6
-moviepy>=1.0.3
 
-# OpenAI API
+# API OpenAI
 openai>=0.27.0
 
-# Data Processing
+# Traitement de Données
 pandas>=2.0.0
 numpy>=1.24.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-plotly>=5.15.0
 
-# Configuration and Utilities
+# Monitoring et Évaluation
+psutil>=5.9.0
+
+# Configuration et Utilitaires
 pyyaml>=6.0
 python-dotenv>=1.0.0
 tqdm>=4.65.0
 requests>=2.31.0
 
-# Monitoring and Logging
-mlflow>=2.5.0
-wandb>=0.15.0
-loguru>=0.7.0
-
-# Testing
+# Tests
 pytest>=7.4.0
-pytest-cov>=4.1.0
-
-# Database
-sqlalchemy>=2.0.0
-#sqlite3
-
-# Deployment
-docker>=6.1.0
-gunicorn>=21.2.0
-
-python-dotenv>=1.0.0
