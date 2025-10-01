@@ -181,11 +181,87 @@ class LEDSummarizer:
                 skip_special_tokens=True
             )[0]
             
+            # Nettoyer le résumé des artefacts de génération
+            summary = self._clean_generated_text(summary)
+            
             return summary.strip()
             
         except Exception as e:
             logger.error(f"Erreur lors de la génération du résumé: {e}")
             return f"Erreur lors de la génération: {str(e)}"
+    
+    def _clean_generated_text(self, text: str) -> str:
+        """
+        Nettoie le texte généré des artefacts communs
+        
+        Args:
+            text: Texte généré brut
+            
+        Returns:
+            str: Texte nettoyé
+        """
+        import re
+        
+        # Supprimer les caractères de contrôle et artefacts Unicode
+        text = re.sub(r'[^\w\s\-.,;:!?\'"àâäéèêëïîôöùûüÿçñÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇÑ]', '', text)
+        
+        # Corriger les espaces multiples
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Supprimer les répétitions de mots consécutifs
+        words = text.split()
+        cleaned_words = []
+        prev_word = ""
+        
+        for word in words:
+            # Éviter les répétitions exactes ou très similaires
+            if word.lower() != prev_word.lower() and not self._is_similar_word(word, prev_word):
+                cleaned_words.append(word)
+                prev_word = word
+        
+        # Reconstituer le texte
+        cleaned_text = ' '.join(cleaned_words)
+        
+        # Supprimer les séquences de caractères répétitifs (ex: "étét", "ââ")
+        cleaned_text = re.sub(r'(.)\1{2,}', r'\1', cleaned_text)
+        
+        # Nettoyer les artefacts spécifiques observés
+        cleaned_text = re.sub(r'\bét\w*\b', '', cleaned_text)  # Supprimer "étét", "étée", etc.
+        cleaned_text = re.sub(r'\bÂ\b', '', cleaned_text)      # Supprimer "Â" isolé
+        
+        # Corriger la ponctuation
+        cleaned_text = re.sub(r'\s+([,.;:!?])', r'\1', cleaned_text)
+        cleaned_text = re.sub(r'([.!?])\s*([A-Z])', r'\1 \2', cleaned_text)
+        
+        return cleaned_text.strip()
+    
+    def _is_similar_word(self, word1: str, word2: str) -> bool:
+        """
+        Vérifie si deux mots sont similaires (pour éviter les répétitions)
+        
+        Args:
+            word1, word2: Mots à comparer
+            
+        Returns:
+            bool: True si les mots sont similaires
+        """
+        if not word1 or not word2:
+            return False
+        
+        # Mots identiques en minuscules
+        if word1.lower() == word2.lower():
+            return True
+        
+        # Mots très courts et similaires
+        if len(word1) <= 3 and len(word2) <= 3:
+            return abs(len(word1) - len(word2)) <= 1 and word1[:2].lower() == word2[:2].lower()
+        
+        # Similarité par distance de Levenshtein simple
+        if len(word1) > 3 and len(word2) > 3:
+            common_chars = sum(1 for a, b in zip(word1.lower(), word2.lower()) if a == b)
+            return common_chars / max(len(word1), len(word2)) > 0.8
+        
+        return False
     
     def batch_summarize(self, 
                        texts: List[str], 
