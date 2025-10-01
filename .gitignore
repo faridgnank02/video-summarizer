@@ -1,7 +1,61 @@
+# Modèles volumineux (téléchargés automatiquement)
 /whisper_model
+/assets/models/whisper_model/
+assets/models/**/*.pt
+assets/models/**/*.bin
+
+# Environnement virtuel
 /video-summarizer-env
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Système
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
 *.ipynb
+.ipynb_checkpoints/
+
+# Environnement
 .env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Modèles ML volumineux
+*.pt
+*.pth
+*.safetensors
+*.bin
+models/*/
+!models/.gitkeep
