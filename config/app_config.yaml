@@ -1,0 +1,42 @@
+# Configuration de l'application
+app:
+  name: "Video Summarizer"
+  version: "1.0.0"
+  debug: true
+  
+# Interface utilisateur
+ui:
+  title: "🎥 Résumeur de Vidéos IA"
+  max_file_size: 500  # MB
+  supported_formats: ["mp4", "avi", "mov", "mkv", "webm"]
+  languages: ["fr", "en"]
+  
+# API Configuration
+api:
+  host: "localhost"
+  port: 8000
+  reload: true
+  
+# Streamlit Configuration
+streamlit:
+  port: 8501
+  host: "localhost"
+  
+# Monitoring
+monitoring:
+  enable_mlflow: true
+  enable_wandb: false
+  mlflow_uri: "sqlite:///mlflow.db"
+  
+# Chemins
+paths:
+  models_dir: "./models"
+  data_dir: "./data"
+  logs_dir: "./logs"
+  temp_dir: "./temp"
+  
+# Seuils de qualité
+quality_thresholds:
+  rouge_1: 0.3
+  rouge_2: 0.15
+  rouge_l: 0.25
