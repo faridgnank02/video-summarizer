@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ajouter le répertoire src au PYTHONPATH
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent  # Remonter d'un niveau depuis tests/
 src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
