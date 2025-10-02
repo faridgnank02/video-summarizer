@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script de lancement Python pour Video Summarizer
-Alternative au script bash pour Windows/Mac/Linux
+Python launch script for Video Summarizer
+Cross-platform launcher with cache clearing for Windows/Mac/Linux
 """
 
 import os
@@ -10,58 +10,67 @@ import subprocess
 from pathlib import Path
 
 def main():
-    print("🎥 Video Summarizer - Lancement")
+    print("🎥 Video Summarizer - Launch")
     print("=" * 40)
     
-    # Vérifier le répertoire
+    # Check directory
     if not Path("requirements.txt").exists():
-        print("❌ Erreur: Lancez ce script depuis le répertoire du projet")
+        print("❌ Error: Run this script from the project directory")
         sys.exit(1)
     
-    # Vérifier l'environnement virtuel
+    # Check virtual environment
     if "video-summarizer-env" not in sys.executable:
-        print("⚠️  Environnement virtuel non activé")
-        print("💡 Activez-le avec:")
+        print("⚠️  Virtual environment not activated")
+        print("💡 Activate it with:")
         print("   source video-summarizer-env/bin/activate  # Linux/Mac")
         print("   video-summarizer-env\\Scripts\\activate     # Windows")
         
-        # Essayer d'activer automatiquement (Unix seulement)
+        # Try to activate automatically (Unix only)
         if os.name != 'nt':
             venv_path = Path("video-summarizer-env/bin/python")
             if venv_path.exists():
-                print("🔄 Tentative d'activation automatique...")
+                print("🔄 Attempting automatic activation...")
                 os.execv(str(venv_path), [str(venv_path), __file__])
     
-    # Vérifier Streamlit
+    # Check Streamlit
     try:
         import streamlit
-        print("✅ Streamlit disponible")
+        print("✅ Streamlit available")
     except ImportError:
-        print("❌ Streamlit non installé")
-        print("💡 Installez avec: pip install streamlit")
+        print("❌ Streamlit not installed")
+        print("💡 Install with: pip install streamlit")
         sys.exit(1)
     
-    # Charger les variables d'environnement
+    # Clear Streamlit cache for fresh start
+    print("🧹 Clearing Streamlit cache...")
+    try:
+        subprocess.run([sys.executable, "-m", "streamlit", "cache", "clear"], 
+                      check=False, capture_output=True)
+        print("✅ Cache cleared successfully")
+    except Exception:
+        print("⚠️ Cache clear failed, continuing anyway...")
+    
+    # Load environment variables
     env_file = Path(".env")
     if env_file.exists():
-        print("📝 Chargement de .env...")
+        print("📝 Loading .env file...")
         with open(env_file) as f:
             for line in f:
                 if line.strip() and not line.startswith('#'):
                     key, value = line.strip().split('=', 1)
                     os.environ[key] = value
     
-    # Vérifier OpenAI
+    # Check OpenAI API key
     if os.getenv('OPENAI_API_KEY'):
-        print("✅ Clé API OpenAI configurée")
+        print("✅ OpenAI API key configured")
     else:
-        print("⚠️  OPENAI_API_KEY non configurée")
-        print("💡 Définissez-la dans .env pour utiliser OpenAI GPT")
+        print("⚠️  OPENAI_API_KEY not configured")
+        print("💡 Set it in .env to use OpenAI GPT models")
     
-    # Lancer Streamlit
-    print("\n🚀 Lancement de l'interface web...")
-    print("📱 Accédez à: http://localhost:8501")
-    print("🛑 Arrêtez avec Ctrl+C")
+    # Launch Streamlit
+    print("\n🚀 Starting web interface...")
+    print("📱 Access at: http://localhost:8501")
+    print("🛑 Stop with Ctrl+C")
     print()
     
     try:
@@ -70,9 +79,9 @@ def main():
             "src/ui/streamlit_app.py"
         ], check=True)
     except KeyboardInterrupt:
-        print("\n👋 Application arrêtée")
+        print("\n👋 Application stopped by user")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Erreur lors du lancement: {e}")
+        print(f"❌ Error during launch: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
