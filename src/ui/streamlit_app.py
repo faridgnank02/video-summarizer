@@ -192,7 +192,7 @@ class VideoSummarizerApp:
                 if youtube_url.strip():
                     try:
                         with st.spinner("🔄 Extracting transcript..."):
-                            video_data = self.ingestion.extract_from_youtube(youtube_url)
+                            video_data = self.ingestion.process_youtube_url(youtube_url)
                             st.success(f"✅ Transcript extracted: {video_data.title}")
                             return video_data
                     except Exception as e:
