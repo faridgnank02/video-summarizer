@@ -1,6 +1,6 @@
 """
-Interface Streamlit pour le Video Summarizer
-Application web moderne pour le résumé de vidéos
+Streamlit Interface for Video Summarizer
+Modern web application for video summarization
 """
 
 import streamlit as st
@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-# Ajouter le répertoire src au PYTHONPATH
+# Add src directory to PYTHONPATH
 sys.path.append(str(Path(__file__).parent.parent))
 
 try:
@@ -21,41 +21,41 @@ try:
     from monitoring.metrics import MetricsCollector
     from evaluation.evaluator import SummaryEvaluator
 except ImportError as e:
-    st.error(f"Erreur d'importation des modules: {e}")
-    st.info("Assurez-vous que toutes les dépendances sont installées")
+    st.error(f"Module import error: {e}")
+    st.info("Make sure all dependencies are installed")
     st.stop()
 
-# Configuration de la page
+# Page configuration
 st.set_page_config(
-    page_title="🎥 Résumeur de Vidéos IA",
+    page_title="🎥 AI Video Summarizer",
     page_icon="🎥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Configuration du logging
+# Logging configuration
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class VideoSummarizerApp:
-    """Application Streamlit pour le résumé de vidéos"""
+    """Streamlit application for video summarization"""
     
     def __init__(self):
         self.ingestion = DataIngestion()
         self.preprocessor = TextPreprocessor()
         self.model_manager = None
         
-        # Initialiser le monitoring et l'évaluation
+        # Initialize monitoring and evaluation
         try:
             self.metrics_collector = MetricsCollector()
-            self.evaluator = SummaryEvaluator(load_models=False)  # Chargement à la demande
+            self.evaluator = SummaryEvaluator(load_models=False)  # Lazy loading
         except Exception as e:
-            st.warning(f"Monitoring/Évaluation non disponibles: {e}")
+            st.warning(f"Monitoring/Evaluation unavailable: {e}")
             self.metrics_collector = None
             self.evaluator = None
         
-        # État de l'application
+        # Application state
         if 'summary_history' not in st.session_state:
             st.session_state.summary_history = []
         
@@ -63,76 +63,100 @@ class VideoSummarizerApp:
             st.session_state.current_video_data = None
     
     def initialize_models(self):
-        """Initialise le gestionnaire de modèles (lazy loading)"""
+        """Initialize model manager (lazy loading)"""
         if self.model_manager is None:
-            with st.spinner("🔄 Initialisation des modèles..."):
+            with st.spinner("🔄 Initializing models..."):
                 try:
                     config_path = Path(__file__).parent.parent.parent / "config" / "model_config.yaml"
                     self.model_manager = ModelManager(str(config_path) if config_path.exists() else None)
-                    st.success("✅ Modèles initialisés avec succès!")
+                    st.success("✅ Models initialized successfully!")
                 except Exception as e:
-                    st.error(f"❌ Erreur lors de l'initialisation des modèles: {e}")
+                    st.error(f"❌ Error initializing models: {e}")
                     return False
         return True
     
     def render_header(self):
-        """Affiche l'en-tête de l'application"""
-        st.title("🎥 Résumeur de Vidéos IA")
+        """Display main header"""
+        st.title("🎥 Video Summarizer")
         st.markdown("""
-        **Transformez vos vidéos en résumés intelligents** avec deux modèles au choix :
-        - 🎯 **LED Fine-tuné** : Qualité maximale pour résumés détaillés
-        - ⚡ **OpenAI GPT** : Vitesse optimale pour résumés rapides
+        **Transform your videos into intelligent summaries** with two model options:
+        - 🎯 **LED Fine-tuned** : Maximum quality for detailed summaries (Free & Offline)
+        - ⚡ **OpenAI GPT** : Optimal speed for quick summaries
+        
+        *Choose your source, configure your preferences and get professional summaries in just a few clicks!*
         """)
-        st.divider()
     
     def render_sidebar(self):
-        """Affiche la barre latérale avec les paramètres"""
-        st.sidebar.header("⚙️ Paramètres")
+        """Display sidebar with settings"""
+        st.sidebar.header("⚙️ Settings")
         
-        # Sélection du modèle
+        # Model selection with availability check
+        model_options = ["Auto (Recommended)"]
+        
+        # Check model availability
+        if self.model_manager:
+            from models.model_manager import ModelType
+            led_available, led_msg = self.model_manager.is_model_available(ModelType.LED)
+            openai_available, openai_msg = self.model_manager.is_model_available(ModelType.OPENAI)
+            
+            if led_available:
+                model_options.append("LED (Quality - Free)")
+            else:
+                model_options.append("LED (Unavailable)")
+                
+            if openai_available:
+                model_options.append("OpenAI (Speed)")
+            else:
+                model_options.append("OpenAI (Unavailable)")
+        else:
+            model_options.extend(["LED (Quality - Free)", "OpenAI (Speed)"])
+        
         model_option = st.sidebar.selectbox(
-            "🤖 Modèle de résumé",
-            ["Auto (Recommandé)", "LED (Qualité)", "OpenAI (Rapidité)"],
-            help="Auto choisit automatiquement le meilleur modèle selon le contexte"
+            "🤖 Summary Model",
+            model_options,
+            help="Auto automatically selects the best available model"
         )
         
-        # Sélection de la longueur
+        # Summary length selection
         length_option = st.sidebar.selectbox(
-            "📏 Longueur du résumé",
-            ["Long (200-500 mots)", "Court (50-200 mots)"],
-            help="Longueur approximative du résumé généré"
+            "📏 Summary Length",
+            ["Long (200-500 words)", "Short (50-200 words)"],
+            help="Approximate length of the generated summary"
         )
         
-        # Langue
+        # Language
         language_option = st.sidebar.selectbox(
-            "🌍 Langue",
-            ["Auto-détection", "Français", "Anglais"],
-            help="Langue du résumé généré"
+            "🌍 Language",
+            ["Auto-detect", "English", "French", "Spanish", "German"],
+            help="Language of the generated summary"
         )
         
-        # Monitoring système
+        # System monitoring
         if self.metrics_collector:
-            with st.sidebar.expander("📊 Monitoring Système"):
+            with st.sidebar.expander("📊 System Monitoring"):
                 try:
                     metrics = self.metrics_collector._collect_system_metrics()
                     st.metric("💻 CPU", f"{metrics.cpu_percent:.1f}%")
-                    st.metric("🧠 Mémoire", f"{metrics.memory_percent:.1f}%")
-                    st.metric("💾 Disque", f"{metrics.disk_usage_percent:.1f}%")
+                    st.metric("🧠 Memory", f"{metrics.memory_percent:.1f}%")
+                    st.metric("💾 Disk", f"{metrics.disk_usage_percent:.1f}%")
                 except Exception as e:
-                    st.warning("Métriques indisponibles")
+                    st.warning("Metrics unavailable")
         
-        # Informations sur les modèles
-        with st.sidebar.expander("ℹ️ Informations sur les modèles"):
+        # Model information
+        with st.sidebar.expander("ℹ️ Model Information"):
             st.markdown("""
-            **LED Fine-tuné:**
-            - ✅ Qualité élevée
-            - ✅ Textes longs
-            - ⏱️ Plus lent (~5-10s)
+            **LED Fine-tuned:**
+            - ✅ High quality
+            - ✅ Long texts specialist
+            - 🆓 **FREE & Offline**
+            - ⏱️ Slower (~5-10s)
+            - 🇺🇸 Best for English
             
             **OpenAI GPT:**
-            - ✅ Très rapide (~2-3s)
-            - ✅ Multi-langues
-            - 💰 Coût par utilisation
+            - ✅ Very fast (~2-3s)
+            - ✅ Multi-language
+            - 💰 Cost per usage
+            - 🌐 Requires internet
             """)
         
         return {
@@ -142,134 +166,160 @@ class VideoSummarizerApp:
         }
     
     def render_video_input(self):
-        """Affiche les options d'entrée vidéo"""
-        st.header("📹 Source Vidéo")
+        """Display video input options"""
+        st.header("📹 Video Source")
         
-        # Tabs pour différentes sources
-        tab1, tab2, tab3 = st.tabs(["🔗 YouTube", "📁 Fichier Local", "📝 Texte Direct"])
+        # Tabs for different sources
+        tab1, tab2, tab3 = st.tabs(["🔗 YouTube", "📁 Local File", "📝 Direct Text"])
         
         video_data = None
         
         with tab1:
-            st.subheader("URL YouTube")
+            st.subheader("YouTube")
             youtube_url = st.text_input(
-                "Entrez l'URL de la vidéo YouTube :",
+                "YouTube URL:",
                 placeholder="https://www.youtube.com/watch?v=...",
-                help="Collez l'URL complète de la vidéo YouTube"
+                help="Paste a YouTube video URL"
             )
             
-            if st.button("📥 Extraire le transcript", key="youtube"):
-                if youtube_url:
+            language_pref = st.selectbox(
+                "Preferred subtitle language:",
+                ["Auto", "English", "French", "Spanish", "German"],
+                help="Language of subtitles to extract"
+            )
+            
+            if st.button("📥 Extract Transcript", key="youtube"):
+                if youtube_url.strip():
                     try:
-                        with st.spinner("🔄 Extraction du transcript..."):
-                            video_data = self.ingestion.process_youtube_url(youtube_url)
-                            st.success(f"✅ Transcript extrait : {video_data.title}")
+                        with st.spinner("🔄 Extracting transcript..."):
+                            video_data = self.ingestion.extract_from_youtube(youtube_url)
+                            st.success(f"✅ Transcript extracted: {video_data.title}")
+                            return video_data
                     except Exception as e:
-                        st.error(f"❌ Erreur : {e}")
+                        st.error(f"❌ Error during extraction: {str(e)}")
                 else:
-                    st.warning("⚠️ Veuillez entrer une URL YouTube")
+                    st.warning("⚠️ Please enter a YouTube URL")
         
         with tab2:
-            st.subheader("Fichier Vidéo Local")
+            st.subheader("Local File")
             uploaded_file = st.file_uploader(
-                "Choisissez un fichier vidéo",
-                type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
-                help="Formats supportés : MP4, AVI, MOV, MKV, WebM"
+                "Choose an audio/video file:",
+                type=['mp4', 'avi', 'mov', 'mp3', 'wav', 'm4a'],
+                help="Supported formats: MP4, AVI, MOV, MP3, WAV, M4A"
             )
             
-            if uploaded_file and st.button("🎙️ Transcrire l'audio", key="local"):
-                st.warning("🚧 Fonctionnalité en développement (nécessite Whisper)")
-                # TODO: Implémenter la transcription locale avec Whisper
+            if uploaded_file and st.button("� Transcribe Audio", key="local"):
+                st.warning("🚧 Feature in development (requires Whisper)")
+                # TODO: Implement local transcription with Whisper
         
         with tab3:
-            st.subheader("Texte Direct")
+            st.subheader("Direct Text")
             direct_text = st.text_area(
-                "Collez votre texte ici :",
+                "Paste your text here:",
                 height=200,
-                placeholder="Collez le transcript ou le texte que vous souhaitez résumer...",
-                help="Texte brut à résumer directement"
+                placeholder="Paste the transcript or text you want to summarize...",
+                help="Raw text to summarize directly"
             )
             
             custom_title = st.text_input(
-                "Titre (optionnel) :",
-                placeholder="Titre de votre texte"
+                "Title (optional):",
+                placeholder="Title for your text"
             )
             
-            if st.button("📝 Utiliser ce texte", key="direct"):
+            if st.button("📝 Use This Text", key="direct"):
                 if direct_text.strip():
                     video_data = self.ingestion.process_text_input(
                         direct_text, 
-                        custom_title or "Texte personnalisé"
+                        custom_title or "Custom Text"
                     )
-                    st.success("✅ Texte prêt pour le résumé")
+                    st.success("✅ Text ready for summary")
                 else:
-                    st.warning("⚠️ Veuillez entrer du texte")
+                    st.warning("⚠️ Please enter some text")
         
         return video_data
     
     def render_video_info(self, video_data: VideoData):
-        """Affiche les informations sur la vidéo"""
-        st.header("📊 Informations sur le contenu")
+        """Display video information"""
+        st.header("📊 Content Information")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("📝 Titre", value="", delta=video_data.title)
+            st.metric("📝 Title", value="", delta=video_data.title)
         
         with col2:
             word_count = len(video_data.transcript.split())
-            st.metric("📊 Mots", word_count)
+            st.metric("📊 Words", word_count)
         
         with col3:
-            st.metric("🌍 Langue", video_data.language.upper())
+            st.metric("🌍 Language", video_data.language.upper())
         
         with col4:
             if video_data.duration:
                 duration_min = video_data.duration // 60
-                st.metric("⏱️ Durée", f"{duration_min}min")
+                st.metric("⏱️ Duration", f"{duration_min}min")
             else:
                 st.metric("📄 Source", video_data.source)
         
-        # Prévisualisation du transcript
-        with st.expander("👁️ Prévisualiser le transcript"):
+        # Quality warning if necessary
+        if video_data.metadata and 'quality_warning' in video_data.metadata:
+            st.warning(f"⚠️ {video_data.metadata['quality_warning']}")
+            st.info("💡 **Tip**: Try using the OpenAI model for better summaries with this type of content.")
+        elif video_data.metadata and 'quality_score' in video_data.metadata:
+            quality_score = video_data.metadata['quality_score']
+            if quality_score >= 0.7:
+                st.success(f"✅ High quality transcript (score: {quality_score:.2f})")
+            elif quality_score >= 0.5:
+                st.info(f"ℹ️ Medium quality transcript (score: {quality_score:.2f})")
+        
+        # Transcript preview
+        with st.expander("👁️ Preview Transcript"):
             preview_length = min(500, len(video_data.transcript))
             st.text_area(
-                "Transcript (premiers 500 caractères) :",
+                "Transcript (first 500 characters):",
                 video_data.transcript[:preview_length] + ("..." if len(video_data.transcript) > preview_length else ""),
                 height=150,
                 disabled=True
             )
     
     def render_summary_generation(self, video_data: VideoData, params: Dict[str, str]):
-        """Affiche la section de génération de résumé"""
-        st.header("🎯 Génération du Résumé")
+        """Display summary generation section"""
+        st.header("🎯 Summary Generation")
         
         if not self.initialize_models():
             return
         
-        # Configuration des paramètres
+        # Configure parameters
         model_type = "auto"
-        if "LED" in params['model']:
+        if "LED" in params['model'] and "Unavailable" not in params['model']:
             model_type = "led"
-        elif "OpenAI" in params['model']:
+        elif "OpenAI" in params['model'] and "Unavailable" not in params['model']:
             model_type = "openai"
+        # If unavailable model selected, use auto
         
-        summary_length = "short" if "Court" in params['length'] else "long"
+        summary_length = "short" if "Short" in params['length'] else "long"
         
         language = None
-        if params['language'] != "Auto-détection":
-            language = "french" if params['language'] == "Français" else "english"
+        if params['language'] != "Auto-detect":
+            if params['language'] == "English":
+                language = "english"
+            elif params['language'] == "French":
+                language = "french"
+            elif params['language'] == "Spanish":
+                language = "spanish"
+            elif params['language'] == "German":
+                language = "german"
         
-        # Bouton de génération
-        if st.button("🚀 Générer le Résumé", type="primary", use_container_width=True):
+        # Generation button
+        if st.button("🚀 Generate Summary", type="primary", use_container_width=True):
             try:
                 start_time = time.time()
                 
-                with st.spinner("🔄 Génération en cours..."):
-                    # Préprocessing
+                with st.spinner("🔄 Generating summary..."):
+                    # Preprocessing
                     processed_data = self.preprocessor.preprocess(video_data.transcript)
                     
-                    # Génération du résumé
+                    # Summary generation
                     summary = self.model_manager.summarize_simple(
                         text=processed_data.text,
                         model_type=model_type,
@@ -279,30 +329,30 @@ class VideoSummarizerApp:
                 
                 processing_time = time.time() - start_time
                 
-                # Affichage du résumé
-                st.success(f"✅ Résumé généré en {processing_time:.1f}s")
+                # Display summary
+                st.success(f"✅ Summary generated in {processing_time:.1f}s")
                 
-                # Métriques du résumé
+                # Summary metrics
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("📊 Mots", len(summary.split()))
+                    st.metric("📊 Words", len(summary.split()))
                 with col2:
                     compression_ratio = len(summary.split()) / len(video_data.transcript.split()) * 100
                     st.metric("📉 Compression", f"{compression_ratio:.1f}%")
                 with col3:
-                    st.metric("⏱️ Temps", f"{processing_time:.1f}s")
+                    st.metric("⏱️ Time", f"{processing_time:.1f}s")
                 
-                # Résumé
-                st.subheader("📋 Résumé")
+                # Summary
+                st.subheader("📋 Summary")
                 st.markdown(f"**{video_data.title}**")
                 st.write(summary)
                 
-                # Évaluation automatique du résumé
+                # Automatic summary evaluation
                 evaluation_data = None
                 if self.evaluator:
                     try:
-                        with st.spinner("🎯 Évaluation de la qualité..."):
-                            # Charger les modèles d'évaluation si nécessaire
+                        with st.spinner("🎯 Evaluating quality..."):
+                            # Load evaluation models if necessary
                             if not hasattr(self.evaluator, 'sentence_model') or self.evaluator.sentence_model is None:
                                 self.evaluator._load_models()
                             
@@ -315,28 +365,28 @@ class VideoSummarizerApp:
                             if evaluation and hasattr(evaluation, 'metrics'):
                                 evaluation_data = evaluation.metrics
                                 
-                                # Afficher les métriques d'évaluation
-                                st.subheader("🎯 Évaluation de la Qualité")
+                                # Display evaluation metrics
+                                st.subheader("🎯 Quality Evaluation")
                                 
                                 col1, col2, col3, col4 = st.columns(4)
                                 with col1:
-                                    st.metric("📊 Score Global", f"{evaluation_data.overall_score:.3f}")
+                                    st.metric("📊 Overall Score", f"{evaluation_data.overall_score:.3f}")
                                 with col2:
-                                    st.metric("🔗 Similarité", f"{evaluation_data.semantic_similarity:.3f}")
+                                    st.metric("🔗 Similarity", f"{evaluation_data.semantic_similarity:.3f}")
                                 with col3:
-                                    st.metric("📏 Cohérence", f"{evaluation_data.coherence_score:.3f}")
+                                    st.metric("📏 Coherence", f"{evaluation_data.coherence_score:.3f}")
                                 with col4:
-                                    st.metric("📖 Lisibilité", f"{evaluation_data.readability_score:.3f}")
+                                    st.metric("📖 Readability", f"{evaluation_data.readability_score:.3f}")
                                 
-                                # Recommandations
+                                # Recommendations
                                 if hasattr(evaluation, 'recommendations') and evaluation.recommendations:
-                                    with st.expander("💡 Recommandations d'amélioration"):
-                                        for rec in evaluation.recommendations[:3]:  # Top 3 recommandations
+                                    with st.expander("💡 Improvement Recommendations"):
+                                        for rec in evaluation.recommendations[:3]:  # Top 3 recommendations
                                             st.write(f"• {rec}")
                     except Exception as e:
-                        st.warning(f"Évaluation indisponible: {e}")
+                        st.warning(f"Evaluation unavailable: {e}")
                 
-                # Sauvegarder dans l'historique
+                # Save to history
                 summary_data = {
                     'title': video_data.title,
                     'summary': summary,
@@ -348,33 +398,33 @@ class VideoSummarizerApp:
                 }
                 st.session_state.summary_history.append(summary_data)
                 
-                # Options d'export
+                # Export options
                 self.render_export_options(summary_data)
                 
             except Exception as e:
-                st.error(f"❌ Erreur lors de la génération : {e}")
-                logger.error(f"Erreur résumé: {e}")
+                st.error(f"❌ Error during generation: {e}")
+                logger.error(f"Summary error: {e}")
     
     def render_export_options(self, summary_data: Dict[str, Any]):
-        """Affiche les options d'export"""
+        """Display export options"""
         st.subheader("💾 Export")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
             # Export TXT
-            txt_content = f"""Titre: {summary_data['title']}
+            txt_content = f"""Title: {summary_data['title']}
 Date: {summary_data['timestamp']}
-Modèle: {summary_data['model_type']}
-Longueur: {summary_data['length']}
+Model: {summary_data['model_type']}
+Length: {summary_data['length']}
 
-Résumé:
+Summary:
 {summary_data['summary']}"""
             
             st.download_button(
-                "📄 Télécharger TXT",
+                "📄 Download TXT",
                 txt_content,
-                file_name=f"resume_{summary_data['timestamp'].replace(':', '-')}.txt",
+                file_name=f"summary_{summary_data['timestamp'].replace(':', '-')}.txt",
                 mime="text/plain"
             )
         
@@ -384,21 +434,21 @@ Résumé:
             json_content = json.dumps(summary_data, indent=2, ensure_ascii=False)
             
             st.download_button(
-                "📊 Télécharger JSON",
+                "📊 Download JSON",
                 json_content,
-                file_name=f"resume_{summary_data['timestamp'].replace(':', '-')}.json",
+                file_name=f"summary_{summary_data['timestamp'].replace(':', '-')}.json",
                 mime="application/json"
             )
         
         with col3:
-            # Copier dans le presse-papier (avec JavaScript)
-            if st.button("📋 Copier"):
-                st.write("Sélectionnez le texte ci-dessus et copiez-le (Ctrl+C)")
+            # Copy to clipboard (with JavaScript)
+            if st.button("📋 Copy"):
+                st.write("Select the text above and copy it (Ctrl+C)")
     
     def render_history(self):
-        """Affiche l'historique des résumés"""
+        """Display summary history"""
         if st.session_state.summary_history:
-            st.header("📚 Historique des Résumés")
+            st.header("📚 Summary History")
             
             for i, item in enumerate(reversed(st.session_state.summary_history)):
                 # Icône selon la qualité (si évaluation disponible)
@@ -420,32 +470,32 @@ Résumé:
                     with col1:
                         st.write(item['summary'])
                         
-                        # Afficher l'évaluation si disponible
+                        # Display evaluation if available
                         if item.get('evaluation'):
                             eval_data = item['evaluation']
-                            st.markdown("**📊 Qualité:**")
+                            st.markdown("**📊 Quality:**")
                             sub_col1, sub_col2, sub_col3 = st.columns(3)
                             with sub_col1:
                                 st.write(f"Score: {eval_data.get('overall_score', 0):.3f}")
                             with sub_col2:
-                                st.write(f"Similarité: {eval_data.get('semantic_similarity', 0):.3f}")
+                                st.write(f"Similarity: {eval_data.get('semantic_similarity', 0):.3f}")
                             with sub_col3:
-                                st.write(f"Cohérence: {eval_data.get('coherence_score', 0):.3f}")
+                                st.write(f"Coherence: {eval_data.get('coherence_score', 0):.3f}")
                     
                     with col2:
-                        st.metric("Modèle", item['model_type'])
-                        st.metric("Longueur", item['length'])
-                        st.metric("Temps", f"{item['processing_time']:.1f}s")
+                        st.metric("Model", item['model_type'])
+                        st.metric("Length", item['length'])
+                        st.metric("Time", f"{item['processing_time']:.1f}s")
             
-            # Bouton pour vider l'historique
-            if st.button("🗑️ Vider l'historique"):
+            # Button to clear history
+            if st.button("🗑️ Clear History"):
                 st.session_state.summary_history = []
                 st.rerun()
     
     def render_stats(self):
-        """Affiche les statistiques globales"""
+        """Display global statistics"""
         if self.model_manager:
-            st.header("📈 Statistiques")
+            st.header("📈 Statistics")
             
             try:
                 stats = self.model_manager.get_stats()
@@ -453,7 +503,7 @@ Résumé:
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    st.metric("📊 Total Requêtes", stats.get('total_requests', 0))
+                    st.metric("📊 Total Requests", stats.get('total_requests', 0))
                 
                 with col2:
                     st.metric("🎯 LED", stats.get('led_requests', 0))
@@ -463,7 +513,7 @@ Résumé:
                 
                 with col4:
                     avg_time = stats.get('average_processing_time', 0)
-                    st.metric("⏱️ Temps Moyen", f"{avg_time:.1f}s")
+                    st.metric("⏱️ Average Time", f"{avg_time:.1f}s")
                 
                 # Graphique simple des requêtes
                 if stats.get('total_requests', 0) > 0:
@@ -474,54 +524,54 @@ Résumé:
                     requests = [stats.get('led_requests', 0), stats.get('openai_requests', 0)]
                     
                     ax.bar(models, requests, color=['#1f77b4', '#ff7f0e'])
-                    ax.set_ylabel('Nombre de requêtes')
-                    ax.set_title('Utilisation des modèles')
+                    ax.set_ylabel('Number of requests')
+                    ax.set_title('Model usage')
                     
                     st.pyplot(fig)
                     
             except Exception as e:
-                st.error(f"Erreur lors du chargement des statistiques: {e}")
+                st.error(f"Error loading statistics: {e}")
     
     def run(self):
-        """Lance l'application Streamlit"""
+        """Launch the Streamlit application"""
         self.render_header()
         
-        # Barre latérale
+        # Sidebar
         params = self.render_sidebar()
         
-        # Contenu principal
+        # Main content
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Entrée vidéo
+            # Video input
             video_data = self.render_video_input()
             
-            # Si on a des données vidéo
+            # If we have video data
             if video_data:
                 st.session_state.current_video_data = video_data
             
-            # Afficher les infos et générer le résumé
+            # Display info and generate summary
             if st.session_state.current_video_data:
                 self.render_video_info(st.session_state.current_video_data)
                 self.render_summary_generation(st.session_state.current_video_data, params)
         
         with col2:
-            # Historique et statistiques
+            # History and statistics
             self.render_history()
             
-            # Statistiques (si des modèles sont chargés)
+            # Statistics (if models are loaded)
             if self.model_manager:
                 self.render_stats()
 
 
 def main():
-    """Point d'entrée principal"""
+    """Main entry point"""
     try:
         app = VideoSummarizerApp()
         app.run()
     except Exception as e:
-        st.error(f"Erreur critique : {e}")
-        logger.error(f"Erreur critique: {e}")
+        st.error(f"Critical error: {e}")
+        logger.error(f"Critical error: {e}")
 
 
 if __name__ == "__main__":

@@ -196,8 +196,17 @@ class MetricsCollector:
                 gpus = GPUtil.getGPUs()
                 if gpus:
                     gpu_memory = gpus[0].memoryUsed
-            except ImportError:
-                pass
+            except (ImportError, Exception):
+                # GPUtil non disponible ou aucun GPU détecté
+                gpu_memory = None
+            
+            # Connexions réseau (avec gestion d'erreur pour macOS)
+            active_connections = 0
+            try:
+                active_connections = len(psutil.net_connections())
+            except (psutil.AccessDenied, OSError):
+                # Permissions insuffisantes sur macOS/certains systèmes
+                active_connections = 0
             
             return SystemMetrics(
                 timestamp=datetime.now().isoformat(),
@@ -206,7 +215,7 @@ class MetricsCollector:
                 memory_used_mb=memory.used / 1024 / 1024,
                 disk_usage_percent=disk.percent,
                 gpu_memory_mb=gpu_memory,
-                active_connections=len(psutil.net_connections())
+                active_connections=active_connections
             )
             
         except Exception as e:

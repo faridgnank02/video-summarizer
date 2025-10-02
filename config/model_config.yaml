@@ -1,16 +1,16 @@
 models:
   led:
     batch_size: 1
-    device: cuda
+    device: auto  # Auto-détection: MPS pour M1, CUDA pour GPU NVIDIA, CPU sinon
     generation_config:
       do_sample: false
       early_stopping: true
-      length_penalty: 1.5
+      length_penalty: 2.0        # Plus pénalisant pour éviter les textes trop longs
       max_length: 512
-      min_length: 50
-      no_repeat_ngram_size: 2
-      num_beams: 3
-      repetition_penalty: 1.1
+      min_length: 80             # Minimum plus élevé pour forcer du contenu
+      no_repeat_ngram_size: 4    # Plus strict contre les répétitions
+      num_beams: 4               # Plus de beams pour plus de qualité
+      repetition_penalty: 1.3    # Plus pénalisant pour les répétitions
       temperature: 1.0
     max_input_length: 4096
     max_output_length: 512

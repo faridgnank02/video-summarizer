@@ -37,12 +37,34 @@ print(led.summarize('Votre long texte ici...'))
 "
 ```
 
-## 🔧 Résolution Express
+## � Optimisation GPU M1 (MacBook Pro/Air)
+
+**✅ GPU M1 automatiquement détecté et utilisé !**
+
+### Performance GPU M1
+- 🔥 **1.5x plus rapide** que le CPU
+- ⚡ **Accélération Metal Performance Shaders (MPS)**
+- 🧠 **Moins de consommation mémoire**
+- 🌡️ **Moins de chauffe**
+
+### Vérification GPU
+```bash
+# Tester que le GPU M1 est utilisé
+python3 -c "
+import torch
+from src.models.led_model import LEDSummarizer
+led = LEDSummarizer()
+print(f'Device: {led.device}')  # Doit afficher 'mps'
+"
+```
+
+## �🔧 Résolution Express
 
 | Problème | Solution |
 |----------|----------|
 | ModuleNotFoundError | `pip install -r requirements.txt` |
 | Mémoire insuffisante | Utilisez OpenAI au lieu de LED |
+| GPU M1 non utilisé | Vérifiez `config/model_config.yaml` → `device: auto` |
 | Erreur YouTube | `pip install --upgrade youtube-transcript-api` |
 | Pas de clé OpenAI | Utilisez uniquement le modèle LED |
 

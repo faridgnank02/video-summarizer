@@ -110,13 +110,24 @@ class YouTubeTranscriptExtractor:
             for snippet in transcript_list:
                 full_text += snippet.text + " "
             
+            transcript_text = full_text.strip()
+            
+            # Évaluer la qualité du transcript
+            quality_score = self._assess_transcript_quality(transcript_text)
+            
             # Obtenir les métadonnées de la vidéo (si possible)
             metadata = self._get_video_metadata(video_id)
+            
+            # Ajouter les informations de qualité aux métadonnées
+            metadata['quality_score'] = quality_score
+            if quality_score < 0.4:
+                metadata['quality_warning'] = f'Transcript de faible qualité (score: {quality_score:.2f}) - résumé potentiellement incohérent'
+                logger.warning(f"Transcript de faible qualité détecté pour {video_id}: score {quality_score:.2f}")
             
             return VideoData(
                 url=video_url,
                 title=metadata.get('title', f'Vidéo {video_id}'),
-                transcript=full_text.strip(),
+                transcript=transcript_text,
                 duration=metadata.get('duration'),
                 language=selected_language,
                 source='youtube',
@@ -125,6 +136,74 @@ class YouTubeTranscriptExtractor:
             
         except Exception as e:
             raise VideoIngestionError(f"Erreur lors de l'extraction du transcript: {e}")
+    
+    def _assess_transcript_quality(self, transcript: str) -> float:
+        """
+        Évalue la qualité d'un transcript YouTube
+        
+        Args:
+            transcript: Texte du transcript
+            
+        Returns:
+            float: Score de qualité entre 0 et 1
+        """
+        if not transcript or len(transcript.strip()) < 50:
+            return 0.0
+        
+        words = transcript.split()
+        if len(words) < 10:
+            return 0.1
+        
+        # Calcul de différents indicateurs de qualité
+        scores = []
+        
+        # 1. Ratio de mots cohérents
+        coherent_words = 0
+        for word in words:
+            if self._is_word_coherent(word):
+                coherent_words += 1
+        coherence_score = coherent_words / len(words) if words else 0
+        scores.append(coherence_score)
+        
+        # 2. Longueur moyenne des mots
+        avg_length = sum(len(w) for w in words) / len(words) if words else 0
+        length_score = min(avg_length / 5.0, 1.0)  # Normaliser à 1.0 pour 5+ lettres
+        scores.append(length_score)
+        
+        # 3. Diversité du vocabulaire
+        unique_words = set(word.lower() for word in words)
+        diversity_score = len(unique_words) / len(words) if words else 0
+        scores.append(diversity_score)
+        
+        # 4. Présence de phrases complètes
+        sentences = [s.strip() for s in transcript.split('.') if len(s.strip()) > 10]
+        sentence_score = min(len(sentences) / 10.0, 1.0)  # Normaliser pour 10+ phrases
+        scores.append(sentence_score)
+        
+        # Score final (moyenne pondérée)
+        final_score = (
+            coherence_score * 0.4 +    # Le plus important
+            length_score * 0.2 +       
+            diversity_score * 0.2 +    
+            sentence_score * 0.2
+        )
+        
+        return final_score
+    
+    def _is_word_coherent(self, word: str) -> bool:
+        """Vérifie si un mot semble cohérent"""
+        if len(word) < 2:
+            return False
+        
+        # Vérifier la présence de voyelles
+        vowels = 'aeiouàâäéèêëïîôöùûüÿAEIOUÀÂÄÉÈÊËÏÎÔÖÙÛÜŸ'
+        has_vowel = any(c in vowels for c in word)
+        
+        # Éviter les mots avec trop de répétitions
+        unique_chars = set(word.lower())
+        diversity = len(unique_chars) / len(word)
+        
+        return has_vowel and diversity > 0.3
     
     def _get_video_metadata(self, video_id: str) -> Dict[str, Any]:
         """Obtient les métadonnées de la vidéo (titre, durée, etc.)"""

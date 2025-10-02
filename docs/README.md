@@ -2,7 +2,7 @@
 
 Un outil professionnel de résumé de vidéos alimenté par l'IA, conçu pour extraire et synthétiser automatiquement le contenu de vidéos YouTube et de textes longs.
 
-## 🚀 Fonctionnalités principales
+## Fonctionnalités principales
 
 - **Résumé multi-sources** : Vidéos YouTube (via URL), texte direct, fichiers locaux
 - **Modèles IA avancés** : LED fine-tuné pour la qualité, OpenAI GPT pour la rapidité
@@ -182,7 +182,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 Les logs sont disponibles dans `logs/` avec différents niveaux de verbosité configurables.
 
-## 🚀 Déploiement
+## Déploiement
 
 ### Docker
 
@@ -198,7 +198,7 @@ Le projet est compatible avec :
 - **Heroku/Railway** (API)
 - **AWS/GCP** (déploiement complet)
 
-## 🤝 Contribution
+## Contribution
 
 1. Fork le project
 2. Créez votre branche (`git checkout -b feature/nouvelle-fonctionnalite`)
@@ -219,4 +219,3 @@ Ce projet est sous licence MIT. Voir `LICENSE` pour plus de détails.
 
 ---
 
-**Développé avec ❤️ pour simplifier l'analyse de contenu vidéo**

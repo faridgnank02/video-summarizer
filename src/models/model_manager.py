@@ -111,22 +111,34 @@ class ModelManager:
         return default_config
     
     @property
-    def led_model(self) -> LEDSummarizer:
+    def led_model(self) -> Optional[LEDSummarizer]:
         """Accès lazy au modèle LED"""
         if self._led_model is None:
             logger.info("Chargement du modèle LED...")
             start_time = time.time()
             
-            led_config = self.config['models']['led']
-            self._led_model = LEDSummarizer(
-                model_name=led_config['model_name'],
-                config_path=self.config_path,
-                device=led_config.get('device', 'auto')
-            )
-            
-            load_time = time.time() - start_time
-            logger.info(f"Modèle LED chargé en {load_time:.2f}s")
+            try:
+                led_config = self.config['models']['led']
+                self._led_model = LEDSummarizer(
+                    model_name=led_config['model_name'],
+                    config_path=self.config_path,
+                    device=led_config.get('device', 'auto')
+                )
+                
+                load_time = time.time() - start_time
+                logger.info(f"Modèle LED chargé en {load_time:.2f}s")
+                
+            except Exception as e:
+                logger.error(f"Impossible de charger le modèle LED: {e}")
+                logger.info("Le modèle LED ne sera pas disponible")
+                # Ne pas réessayer - marquer comme échec définitif
+                self._led_model = False
+                return None
         
+        # Si le chargement a échoué précédemment
+        if self._led_model is False:
+            return None
+            
         return self._led_model
     
     @property
@@ -158,7 +170,9 @@ class ModelManager:
         try:
             if model_type == ModelType.LED:
                 # Vérifier si le modèle LED peut être chargé
-                _ = self.led_model
+                led_model = self.led_model
+                if led_model is None:
+                    return False, "Modèle LED indisponible (erreur de chargement)"
                 return True, ""
             
             elif model_type == ModelType.OPENAI:
@@ -238,20 +252,28 @@ class ModelManager:
         model_available, error_msg = self.is_model_available(request.model_type)
         
         if not model_available:
-            if self.config.get('auto_fallback', False):
-                # Essayer l'autre modèle en fallback
-                fallback_model = (ModelType.OPENAI if request.model_type == ModelType.LED 
-                                else ModelType.LED)
-                
-                fallback_available, _ = self.is_model_available(fallback_model)
-                if fallback_available:
-                    logger.warning(f"Modèle {request.model_type.value} indisponible, "
-                                 f"fallback vers {fallback_model.value}")
-                    request.model_type = fallback_model
-                else:
-                    raise RuntimeError(f"Aucun modèle disponible. Erreur: {error_msg}")
+            # Toujours essayer le fallback automatique
+            fallback_model = (ModelType.OPENAI if request.model_type == ModelType.LED 
+                            else ModelType.LED)
+            
+            fallback_available, _ = self.is_model_available(fallback_model)
+            if fallback_available:
+                logger.warning(f"Modèle {request.model_type.value} indisponible, "
+                             f"fallback vers {fallback_model.value}")
+                request.model_type = fallback_model
             else:
-                raise RuntimeError(f"Modèle {request.model_type.value} indisponible: {error_msg}")
+                raise RuntimeError(f"Aucun modèle disponible. Erreur LED: {error_msg}")
+        
+        elif request.model_type == ModelType.LED:
+            # Double vérification pour LED : essayer d'accéder au modèle
+            led_model = self.led_model
+            if led_model is None:
+                logger.warning("Modèle LED indisponible, fallback vers OpenAI")
+                openai_available, _ = self.is_model_available(ModelType.OPENAI)
+                if openai_available:
+                    request.model_type = ModelType.OPENAI
+                else:
+                    raise RuntimeError("Aucun modèle disponible")
         
         # Ajuster les longueurs selon la configuration
         length_config = self.config['summary_lengths'][request.summary_length.value]
