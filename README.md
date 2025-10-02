@@ -46,7 +46,7 @@ pip install -r requirements.txt
 streamlit run src/ui/streamlit_app.py
 ```
 
-## 🎯 Model Comparison
+## Model Comparison
 
 | Feature | LED Fine-tuned | OpenAI GPT |
 |---------|----------------|------------|
@@ -65,7 +65,7 @@ streamlit run src/ui/streamlit_app.py
 - **GPU Accelerated**: Optimized for Apple M1/M2/M3 chips
 - **Long Documents**: Handles up to 16K tokens natively
 
-### ⚡ **OpenAI Advantages**
+### **OpenAI Advantages**
 - **Speed**: 3-5x faster than LED
 - **Languages**: Excellent multi-language support
 - **Style**: More natural, abstractive summaries
@@ -109,7 +109,7 @@ streamlit run src/ui/streamlit_app.py
 4. Generate summary
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Model Settings (`config/model_config.yaml`)
 ```yaml
@@ -178,7 +178,7 @@ The LED model automatically uses your M1/M2/M3 GPU via Metal Performance Shaders
 - Model performance metrics
 - Usage statistics
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### LED Model Issues
 ```bash
@@ -209,7 +209,7 @@ python -c "import openai; print(openai.Model.list())"
 | Poor quality | Check transcript quality score and try other model |
 | Import errors | Reinstall dependencies: `pip install -r requirements.txt` |
 
-## 📚 Documentation
+## Documentation
 
 - [📖 Quick Start Guide](docs/QUICKSTART.md)
 - [🚀 M1 Optimization Guide](docs/M1_OPTIMIZATION.md)  
@@ -217,7 +217,7 @@ python -c "import openai; print(openai.Model.list())"
 - [📊 API Documentation](docs/API.md)
 - [🚀 Deployment Guide](docs/Deployment.md)
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
@@ -226,7 +226,7 @@ python -c "import openai; print(openai.Model.list())"
 5. Push: `git push origin feature-name`
 6. Create a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
