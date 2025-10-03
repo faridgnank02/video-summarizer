@@ -1,7 +1,7 @@
 # Video Summarizer - Technical Overview
 
 **Technologies & Concepts:**
-#Python #PyTorch #Transformers #Streamlit #FastAPI #SQLite #YAML #REST-API #AI #NLP #MachineLearning #DeepLearning #LED #OpenAI #GPT #ROUGE #AppleSilicon #MPS #CUDA #YouTube-API #Whisper #spaCy #SentenceTransformers #Sklearn #Monitoring #A/B-Testing #Docker #Microservices #WebInterface #QualityAssurance #PerformanceOptimization #CacheManagement #ErrorHandling #Logging #MetricsCollection #BusinessIntelligence
+#Python #PyTorch #Transformers #Streamlit #FastAPI #SQLite #YAML #REST-API #NLP #MachineLearning #DeepLearning #LED #OpenAI #GPT #CUDA #Whisper #spaCy  #Monitoring #A/B-Testing #Docker #Microservices #PerformanceOptimization #CacheManagement
 
 ## 1. Project Overview
 
