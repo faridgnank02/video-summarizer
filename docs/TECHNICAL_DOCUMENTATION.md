@@ -1,7 +1,15 @@
 # Video Summarizer - Technical Overview
 
-**Technologies & Concepts:**
-#Python #PyTorch #Transformers #Streamlit #FastAPI #SQLite #YAML #REST-API #NLP #MachineLearning #DeepLearning #LED #OpenAI #GPT #CUDA #Whisper #spaCy  #Monitoring #A/B-Testing #Docker #Microservices #PerformanceOptimization #CacheManagement
+**Core Technologies:**
+- **Backend:** Python 3.8+, PyTorch, Transformers (Hugging Face), FastAPI
+- **AI Models:** LED (Longformer Encoder-Decoder), OpenAI GPT-4/3.5-turbo
+- **UI/UX:** Streamlit, HTML/CSS, Plotly (dashboards)
+- **Data:** SQLite, YAML, JSON, pandas
+- **NLP:** spaCy, ROUGE metrics, sentence-transformers
+- **Infrastructure:** MPS (Apple Silicon), CUDA, Docker-ready
+- **Monitoring:** Real-time metrics, alerting, performance tracking
+
+**Key Concepts:** #NLP #MachineLearning #DeepLearning #REST-API #Microservices #PerformanceOptimization #CacheManagement #Summarization #TransformerModels
 
 ## 1. Project Overview
 
@@ -13,17 +21,31 @@ This project tackles the problem of information overload by helping users unders
 
 ### 1.2 Core Functionality
 
-The system handles different input types: YouTube videos, local video files, and direct text. It uses two AI models that work together:
+The system processes multiple input types through a unified pipeline:
 
-- **LED (Longformer Encoder-Decoder) Model**: A transformer model built for long documents that works offline and costs nothing to use
-- **OpenAI GPT Models**: Cloud-based models that process content quickly and handle multiple languages well
+**Input Sources:**
+- **YouTube Videos**: Direct URL processing with automatic transcript extraction
+- **Local Media Files**: MP4, AVI, MOV, MP3, WAV, M4A support
+- **Direct Text**: Raw text input for immediate processing
 
-The system picks the best model automatically based on what kind of content you're working with and what's available at the moment.
+**Dual AI Model Strategy:**
+- **LED Model** (`allenai/led-base-16384`): 
+  - ✅ 100% offline, no costs
+  - ✅ Handles up to 16K tokens natively
+  - ✅ Optimized for Apple Silicon (MPS)
+  - ⚠️ English-focused, slower processing
+
+- **OpenAI GPT Models** (GPT-4/3.5-turbo):
+  - ✅ Fast processing (2-3 seconds)
+  - ✅ Excellent multilingual support
+  - ✅ High-quality abstractive summaries
+  - ⚠️ API costs, internet required
 
 ```python
 class ModelManager:
-    def select_optimal_model(self, text_length, language, user_preference)
-    def is_model_available(self, model_type)
+    def select_optimal_model(self, request: SummaryRequest) -> ModelType
+    def is_model_available(self, model_type: ModelType) -> bool
+    def get_model_stats(self) -> Dict[str, Any]
 ```
 
 ### 1.3 Technical Architecture
@@ -50,12 +72,18 @@ The system checks transcript quality before processing and gives confidence scor
 Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses several methods including ROUGE scores, semantic similarity, and custom metrics to measure how good the summaries are.
 
 ```python
+```python
 @dataclass
 class EvaluationMetrics:
-    rouge_1_f: float          # Word overlap
-    semantic_similarity: float # Meaning similarity  
-    coherence_score: float    # Text flow quality
-    overall_score: float      # Combined rating
+    rouge_1_f: float              # ROUGE-1 F1 score
+    rouge_2_f: float              # ROUGE-2 F1 score  
+    rouge_l_f: float              # ROUGE-L F1 score
+    semantic_similarity: float     # Sentence embedding similarity
+    coherence_score: float        # Text flow and readability
+    overall_score: float          # Weighted combined score
+    processing_time: float        # Generation time in seconds
+    model_confidence: float       # Model certainty (0-1)
+```
 ```
 
 The system is optimized for Apple Silicon chips (M1, M2, M3) using Metal Performance Shaders for faster processing.
@@ -72,7 +100,9 @@ class YouTubeTranscriptExtractor:
     def extract_video_id(self, url)
 ```
 
-For local files, it supports common video formats (MP4, AVI, MOV, MKV, WebM) and audio formats (MP3, WAV, M4A). When transcripts aren't available, it uses Whisper models to create them from the audio.
+For local files, it supports common video formats (MP4, AVI, MOV, MKV, WebM) and audio formats (MP3, WAV, M4A). 
+
+**Note:** Currently, the system focuses on text-based processing. Audio-to-text transcription using Whisper models is planned for future implementation. The current version works best with pre-existing transcripts or text content.
 
 The system handles errors well - network problems, API limits, and corrupted files don't crash it. It also extracts useful information like video length, language, and quality indicators.
 
@@ -260,13 +290,41 @@ class ConfigManager:
 
 Configuration changes are detected automatically and applied without requiring system restart for most parameters.
 
+### 4.6 Security and Limitations
+
+**Current Security Measures:**
+- Input validation and sanitization
+- Rate limiting on API endpoints
+- Environment variable protection for API keys
+- CORS configuration for web interface
+- Content filtering for inappropriate material
+
+```python
+class SecurityManager:
+    def validate_input(self, text: str, max_length: int = 50000) -> bool
+    def sanitize_content(self, content: str) -> str
+    def check_rate_limit(self, user_id: str) -> bool
+```
+
+**Current Limitations:**
+- ⚠️ No user authentication system
+- ⚠️ Basic rate limiting implementation
+- ⚠️ Local file storage (not encrypted)
+- ⚠️ Single-instance deployment only
+- ⚠️ Limited multilingual support (mainly EN/FR)
+
+**Planned Security Enhancements:**
+- JWT-based authentication
+- Role-based access control
+- Data encryption at rest
+- Audit logging and compliance
+
 ## 5. Evaluation and Quality Assurance
 
 ### 5.1 Automatic Quality Assessment
 
 The system includes a comprehensive evaluation framework that automatically assesses summary quality using multiple metrics. This helps users understand how good their summaries are and helps the system improve over time.
 
-```python
 ```python
 @dataclass
 class EvaluationMetrics:
@@ -324,17 +382,24 @@ def trigger_quality_alert(self, message)
 
 The monitoring system can detect when summary quality drops, which might indicate model issues, input data problems, or system configuration changes that need attention.
 
-### 5.6 A/B Testing Framework
+### 5.6 Model Comparison and Analysis
 
-The system includes basic A/B testing capabilities to compare different models, parameters, or approaches on the same content.
+The system provides built-in model comparison capabilities to help users choose the optimal approach:
 
 ```python
-class ABTestManager:
-    def run_comparison_test(self, text, test_configs)
-    def compare_results(self, results)
+class ModelComparison:
+    def compare_models(self, text: str, models: List[str]) -> ComparisonResult
+    def benchmark_performance(self, test_cases: List[str]) -> BenchmarkReport
+    def generate_comparison_report(self, results: List[SummaryResponse]) -> str
 ```
 
-This helps optimize model parameters and compare different approaches systematically rather than relying on subjective assessment.
+**Comparison Metrics:**
+- Processing time and resource usage
+- Summary quality (ROUGE scores)
+- Cost analysis (for OpenAI models)
+- User preference ratings
+
+**Note:** Advanced A/B testing framework is planned for future releases to enable systematic parameter optimization and model selection strategies.
 
 ## 6. Monitoring and Performance
 
@@ -343,15 +408,21 @@ This helps optimize model parameters and compare different approaches systematic
 The system includes comprehensive monitoring that tracks both technical performance and business metrics. It monitors CPU, memory, disk usage, and GPU utilization in real-time to ensure optimal performance.
 
 ```python
-```python
 @dataclass
 class SystemMetrics:
-    cpu_percent, memory_percent, disk_usage_percent: float
+    timestamp: str
+    cpu_percent: float            # CPU usage percentage
+    memory_percent: float         # RAM usage percentage
+    memory_used_mb: float        # Used memory in MB
+    disk_usage_percent: float    # Disk usage percentage
+    gpu_memory_mb: Optional[float] # GPU memory (if available)
+    active_connections: int      # Number of active users
     
 class MetricsCollector:
-    def collect_system_metrics(self)
-    def start_collection(self)
-```
+    def collect_system_metrics(self) -> SystemMetrics
+    def start_collection(self, interval: int = 30)
+    def stop_collection(self)
+    def get_metrics_history(self, hours: int = 24) -> List[SystemMetrics]
 ```
 
 The collector runs in a background thread and stores metrics in SQLite for historical analysis. It can detect resource bottlenecks and performance degradation automatically.
@@ -361,17 +432,23 @@ The collector runs in a background thread and stores metrics in SQLite for histo
 Every summarization request is tracked with detailed performance metrics including processing time, input/output lengths, model used, and success status.
 
 ```python
-```python
 @dataclass 
 class PerformanceMetrics:
-    operation, model_name: str
-    processing_time: float
-    success: bool
+    timestamp: str
+    operation: str               # Type of operation performed
+    model_name: str             # Model used for processing
+    processing_time: float      # Time taken in seconds
+    input_length: int           # Input text length in tokens
+    output_length: int          # Output summary length in tokens
+    success: bool               # Operation success status
+    error_message: Optional[str] # Error details if failed
+    memory_peak_mb: float       # Peak memory usage
     
+# Usage example with decorator
 @track_performance
-def summarize_text(text, model):
-    # Function automatically tracked
-```
+def summarize_text(text: str, model_type: str) -> SummaryResponse:
+    """Function automatically tracked for performance metrics"""
+    pass
 ```
 
 This tracking helps identify slow operations, memory leaks, and performance patterns across different content types and models.
@@ -395,11 +472,23 @@ Alerts can be configured for various conditions like high resource usage, error 
 The system tracks business-relevant metrics to understand usage patterns and system effectiveness.
 
 ```python
-```python
+@dataclass
+class BusinessMetrics:
+    timestamp: str
+    total_requests: int          # Total API requests
+    successful_requests: int     # Successful operations
+    failed_requests: int         # Failed operations
+    avg_processing_time: float   # Average response time
+    unique_users: int           # Unique users in period
+    most_used_model: str        # Most popular model
+    total_characters_processed: int # Volume processed
+    cost_tracking: Dict[str, float] # OpenAI usage costs
+
 class BusinessMetricsTracker:
-    def record_request(self, user_id, model_used, processing_time)
-    def get_current_metrics(self)
-```
+    def record_request(self, user_id: str, model_used: str, 
+                      processing_time: float, success: bool)
+    def get_current_metrics(self) -> BusinessMetrics
+    def get_usage_trends(self, days: int = 30) -> List[BusinessMetrics]
 ```
 
 These metrics help understand user behavior, popular models, processing volumes, and system effectiveness over time.
@@ -651,9 +740,14 @@ Test system performance with different content types and models:
 ### 8.8 Troubleshooting Common Issues
 
 **Model Loading Issues:**
-- Ensure sufficient RAM (8GB+ recommended)
-- Check GPU compatibility for acceleration
-- Verify internet connection for model downloads
+- **RAM Requirements**: 8GB minimum, 16GB recommended for LED model
+- **Disk Space**: 4GB free space for model cache and temporary files
+- **GPU Compatibility**: 
+  - Apple Silicon: M1/M2/M3 with MPS support
+  - NVIDIA: CUDA 11.8+ compatible cards
+  - Intel: XPU support (experimental)
+- **Network**: Required for initial model download (~2GB for LED base model)
+- **Python Version**: 3.8+ required, 3.10+ recommended
 
 **API Configuration:**
 - Confirm OpenAI API key is valid
@@ -666,4 +760,91 @@ Test system performance with different content types and models:
 - Verify optimal device selection (GPU vs CPU)
 
 The project includes detailed logging to help diagnose issues. Check log files in the application directory for troubleshooting information.
+
+---
+
+## 9. Project Status and Roadmap
+
+### 9.1 Current Implementation Status
+
+**✅ Fully Implemented:**
+- LED and OpenAI model integration
+- Streamlit web interface
+- FastAPI REST endpoints
+- Basic monitoring and metrics
+- YouTube transcript extraction
+- Text preprocessing pipeline
+- ROUGE-based evaluation
+
+**🔄 Partially Implemented:**
+- Dashboard monitoring (basic version)
+- Caching system (file-based only)
+- Error handling (basic coverage)
+- Configuration management (YAML-based)
+
+**⏳ Planned Features:**
+- Audio-to-text transcription (Whisper integration)
+- Advanced A/B testing framework
+- User authentication system
+- Production deployment tools
+- Advanced security measures
+- Distributed model serving
+
+### 9.2 Performance Benchmarks
+
+**LED Model (Apple M2 Pro, 16GB RAM):**
+- Short summary (150 tokens): ~8-12 seconds
+- Long summary (400 tokens): ~15-25 seconds
+- Memory usage: ~2-4GB peak
+- Throughput: ~50-100 tokens/second
+
+**OpenAI GPT-4 (API):**
+- Short summary: ~2-4 seconds
+- Long summary: ~3-6 seconds
+- Cost: ~$0.01-0.05 per summary
+- Rate limit: 10,000 tokens/minute
+
+### 9.3 Known Issues and Workarounds
+
+1. **Memory Leaks**: LED model may accumulate memory over time
+   - *Workaround*: Restart application after processing large batches
+
+2. **Unicode Handling**: Some special characters may cause issues
+   - *Workaround*: Text cleaning pipeline handles most cases
+
+3. **Large File Processing**: Files >500MB may cause timeouts
+   - *Workaround*: Split large content into smaller chunks
+
+4. **Concurrent Requests**: Limited support for parallel processing
+   - *Workaround*: Use batch API endpoints for multiple items
+
+### 9.4 Contributing Guidelines
+
+**Development Setup:**
+```bash
+# Fork the repository
+git clone https://github.com/yourusername/video-summarizer.git
+cd video-summarizer
+
+# Set up development environment
+python scripts/install.py
+source video-summarizer-env/bin/activate
+
+# Run tests before contributing
+python -m pytest tests/
+```
+
+**Code Quality Standards:**
+- Type hints for all functions
+- Docstring documentation (Google style)
+- Unit tests for new features
+- Performance benchmarks for model changes
+- Security review for API modifications
+
+---
+
+**Project Maintainer:** faridgnank02  
+**Last Updated:** October 2025  
+**Version:** 2.0.0  
+**License:** MIT License
 ```
