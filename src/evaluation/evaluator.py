@@ -1,6 +1,6 @@
 """
 Automatic summary evaluation system
-Simple and reliable metrics: BERTScore, Adapted ROUGE-L, Compression Quality
+Simple and reliable metrics: BERTScore, Compression Quality, Sentence Coherence
 """
 
 import os
@@ -25,7 +25,6 @@ class EvaluationMetrics:
     
     # Main metrics
     bert_score: float              # BERTScore - Contextual semantic similarity
-    rouge_l_adapted: float         # Adapted ROUGE-L - Structure and word order
     compression_quality: float     # Compression with quality control
     
     # Additional simple metrics
@@ -159,10 +158,7 @@ class SummaryEvaluator:
         # 1. Approximate BERTScore (contextual semantic similarity)
         bert_score = self._calculate_bert_score(original_text, generated_summary)
         
-        # 2. ROUGE-L adapted (no reference - internal coherence)  
-        rouge_l = self._calculate_rouge_l_adapted(original_text, generated_summary)
-        
-        # 3. Compression Ratio with quality control
+        # 2. Compression Ratio with quality control
         compression_quality = self._calculate_compression_quality(original_text, generated_summary)
         
         # Simple metrics
@@ -171,13 +167,12 @@ class SummaryEvaluator:
         
         # Global score (weighted average)
         overall = self._calculate_simple_overall(
-            bert_score, rouge_l, compression_quality, word_overlap, sentence_coherence
+            bert_score, compression_quality, word_overlap, sentence_coherence
         )
         
         return EvaluationMetrics(
             # Main metrics
             bert_score=bert_score,
-            rouge_l_adapted=rouge_l,
             compression_quality=compression_quality,
             word_overlap_ratio=word_overlap,
             sentence_coherence=sentence_coherence,
@@ -231,63 +226,7 @@ class SummaryEvaluator:
             logger.warning(f"BERTScore error: {e}")
             return 0.5
     
-    def _calculate_rouge_l_adapted(self, original: str, summary: str) -> float:
-        """
-        Adapted ROUGE-L - Measures longest common subsequences
-        
-        Principle: ROUGE-L measures the length of the longest common subsequence
-        between summary and original text. Captures word order and structure.
-        Adapted here to work without reference summary.
-        
-        Score: 0-1 (0.3+ = acceptable, 0.5+ = good)
-        """
-        if not original.strip() or not summary.strip():
-            return 0.0
-        
-        try:
-            # Simple tokenization by words (lowercase)
-            original_words = original.lower().split()
-            summary_words = summary.lower().split()
-            
-            # Calculate LCS
-            lcs_length = self._longest_common_subsequence(original_words, summary_words)
-            
-            # Adapted ROUGE-L F1-score
-            if len(summary_words) == 0:
-                return 0.0
-            
-            # Precision and Recall based on LCS
-            precision = lcs_length / len(summary_words) if len(summary_words) > 0 else 0
-            recall = lcs_length / len(original_words) if len(original_words) > 0 else 0
-            
-            # F1-score
-            if precision + recall == 0:
-                return 0.0
-            
-            rouge_l = 2 * precision * recall / (precision + recall)
-            
-            logger.debug(f"Adapted ROUGE-L: {rouge_l:.3f}")
-            return rouge_l
-            
-        except Exception as e:
-            logger.warning(f"ROUGE-L error: {e}")
-            return 0.0
-    
-    def _longest_common_subsequence(self, seq1: List[str], seq2: List[str]) -> int:
-        """Calculate the length of the longest common subsequence"""
-        m, n = len(seq1), len(seq2)
-        
-        # Dynamic programming table
-        dp = [[0] * (n + 1) for _ in range(m + 1)]
-        
-        for i in range(1, m + 1):
-            for j in range(1, n + 1):
-                if seq1[i-1] == seq2[j-1]:
-                    dp[i][j] = dp[i-1][j-1] + 1
-                else:
-                    dp[i][j] = max(dp[i-1][j], dp[i][j-1])
-        
-        return dp[m][n]
+
     
     def _calculate_compression_quality(self, original: str, summary: str) -> float:
         """
@@ -401,25 +340,24 @@ class SummaryEvaluator:
             logger.warning(f"Coherence error: {e}")
             return 0.8
     
-    def _calculate_simple_overall(self, bert_score: float, rouge_l: float, 
+    def _calculate_simple_overall(self, bert_score: float, 
                                  compression_quality: float, word_overlap: float,
                                  sentence_coherence: float) -> float:
         """
         Global score with balanced weights
         
         Weights based on importance and reliability of metrics
+        ROUGE-L weight (0.25) redistributed to sentence_coherence (0.10 -> 0.35)
         """
         weights = {
             'bert_score': 0.35,          # Most reliable metric
-            'rouge_l': 0.25,             # Important structure
             'compression_quality': 0.20,  # Summary efficiency
             'word_overlap': 0.10,        # Basic verification
-            'sentence_coherence': 0.10   # Fluidity
+            'sentence_coherence': 0.35   # Fluidity + structure
         }
         
         overall = (
             weights['bert_score'] * bert_score +
-            weights['rouge_l'] * rouge_l +
             weights['compression_quality'] * compression_quality +
             weights['word_overlap'] * word_overlap +
             weights['sentence_coherence'] * sentence_coherence

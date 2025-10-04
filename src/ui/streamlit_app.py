@@ -80,8 +80,8 @@ class VideoSummarizerApp:
         st.title("🎥 Video Summarizer")
         st.markdown("""
         **Transform your videos into intelligent summaries** with two model options:
-        - 🎯 **LED Fine-tuned** : Maximum quality for detailed summaries (Free & Offline)
-        - ⚡ **OpenAI GPT** : Optimal speed for quick summaries
+        - 🎯 **LED* : Maximum quality for extractive summaries (Free & Offline)
+        - ⚡ **OpenAI GPT** : Optimal speed for quick and abstractive summaries
         
         *Choose your source, configure your preferences and get professional summaries in just a few clicks!*
         """)
@@ -146,14 +146,13 @@ class VideoSummarizerApp:
         with st.sidebar.expander("ℹ️ Model Information"):
             st.markdown("""
             **LED Fine-tuned:**
-            - ✅ High quality
-            - ✅ Long texts specialist
+          - ✅ Long texts specialist
             - 🆓 **FREE & Offline**
-            - ⏱️ Slower (~5-10s)
+            - ⏱️ Slower (~30-200s)
             - 🇺🇸 Best for English
             
             **OpenAI GPT:**
-            - ✅ Very fast (~2-3s)
+            - ✅ Very fast (~5-15s)
             - ✅ Multi-language
             - 💰 Cost per usage
             - 🌐 Requires internet

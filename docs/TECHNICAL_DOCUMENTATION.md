@@ -5,7 +5,7 @@
 - **AI Models:** LED (Longformer Encoder-Decoder), OpenAI GPT-4/3.5-turbo
 - **UI/UX:** Streamlit, HTML/CSS, Plotly (dashboards)
 - **Data:** SQLite, YAML, JSON, pandas
-- **NLP:** spaCy, ROUGE metrics, sentence-transformers
+- **NLP:** spaCy, sentence-transformers, semantic similarity
 - **Infrastructure:** MPS (Apple Silicon), CUDA, Docker-ready
 - **Monitoring:** Real-time metrics, alerting, performance tracking
 
@@ -69,13 +69,12 @@ src/
 
 The system checks transcript quality before processing and gives confidence scores for the summaries it creates. If something goes wrong with the main model, backup systems kick in automatically.
 
-Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses reliable metrics including BERTScore for semantic similarity, adapted ROUGE-L for structure preservation, and compression quality assessment.
+Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses reliable metrics including BERTScore for semantic similarity, sentence coherence for flow assessment, and compression quality for optimal summarization ratios.
 
 ```python
 @dataclass
 class EvaluationMetrics:
     bert_score: float              # BERTScore - Contextual semantic similarity
-    rouge_l_adapted: float         # Adapted ROUGE-L - Structure and word order
     compression_quality: float     # Compression with quality control
     word_overlap_ratio: float      # Important words overlap
     sentence_coherence: float      # True coherence between sentences
@@ -83,7 +82,6 @@ class EvaluationMetrics:
     processing_time: float        # Generation time in seconds
     model_used: str               # Name of the model used
     timestamp: str                # Evaluation timestamp
-```
 ```
 
 The system is optimized for Apple Silicon chips (M1, M2, M3) using Metal Performance Shaders for faster processing.
@@ -123,11 +121,6 @@ Quality checking looks at how coherent the transcript is - checking if words mak
 ### 2.3 Content Segmentation and Validation
 
 The preprocessing splits text intelligently, keeping sentences together while staying within model limits. The LED model can handle up to 16,384 tokens, while OpenAI models have different limits depending on which version you're using.
-
-```python
-def _is_text_valid_for_summarization(self, text)
-def _assess_transcript_quality(self, transcript)
-```
 
 The system checks content quality by looking at language patterns and vocabulary consistency. If content quality is too low, it rejects it and suggests alternatives.
 
@@ -202,11 +195,6 @@ generation_config = {
 
 The system includes quality validation for generated summaries. It checks for coherence, proper sentence structure, and meaningful content. Low-quality outputs trigger regeneration with different parameters or fallback to the alternative model.
 
-```python
-def _validate_summary_quality(self, summary, original_text)
-def _has_excessive_repetition(self, text)
-def _compute_similarity(self, text1, text2)
-```
 
 ## 4. System Architecture and Components
 
@@ -237,9 +225,6 @@ app = FastAPI(
 
 @app.post("/api/v1/summarize/text")
 async def summarize_text(request: TextSummaryRequest)
-
-@app.get("/health")
-async def health_check()
 
 @app.post("/api/v1/summarize/youtube") 
 async def summarize_youtube(request: YouTubeSummaryRequest)
@@ -281,54 +266,20 @@ The system uses YAML configuration files for flexible parameter management. Conf
 
 Configuration uses YAML files for app settings, UI parameters, API configuration, and monitoring options.
 
-```python
-class ConfigManager:
-    def __init__(self, config_path)
-    def get(self, key_path, default)
-    def reload_config(self)
-```
-
 Configuration changes are detected automatically and applied without requiring system restart for most parameters.
 
-### 4.6 Security and Limitations
 
-**Current Security Measures:**
-- Input validation and sanitization
-- Rate limiting on API endpoints
-- Environment variable protection for API keys
-- CORS configuration for web interface
-- Content filtering for inappropriate material
-
-```python
-class SecurityManager:
-    def validate_input(self, text: str, max_length: int = 50000) -> bool
-    def sanitize_content(self, content: str) -> str
-    def check_rate_limit(self, user_id: str) -> bool
-```
-
-**Current Limitations:**
-- ⚠️ Basic rate limiting implementation
-- ⚠️ Local file storage (not encrypted)
-- ⚠️ Single-instance deployment only
-- ⚠️ Limited multilingual support (mainly EN/FR)
-
-**Planned Security Enhancements:**
-- JWT-based authentication
-- Role-based access control
-- Data encryption at rest
-- Audit logging and compliance
 
 ## 5. Evaluation and Quality Assurance
 
 ### 5.1 Automatic Quality Assessment
 
-The system includes a simplified and reliable evaluation framework that automatically assesses summary quality using three main metrics: BERTScore for contextual semantic similarity, adapted ROUGE-L for structural preservation, and compression quality for optimal summarization ratios.
+The system includes a simplified and reliable evaluation framework that automatically assesses summary quality using three main metrics: BERTScore for contextual semantic similarity, sentence coherence for text flow assessment, and compression quality for optimal summarization ratios.
 
 ```python
 @dataclass
 class EvaluationMetrics:
     bert_score: float              # BERTScore - Contextual semantic similarity (0.6+ = good, 0.8+ = excellent)
-    rouge_l_adapted: float         # Adapted ROUGE-L - Structure preservation (0.3+ = acceptable, 0.5+ = good)
     compression_quality: float     # Compression with quality control (0.7-0.9 = optimal)
     word_overlap_ratio: float      # Important words overlap
     sentence_coherence: float      # Coherence between sentences
@@ -337,61 +288,31 @@ class EvaluationMetrics:
 
 The evaluation happens automatically when users request it, providing immediate feedback on summary quality with clear, interpretable scores.
 
-### 5.2 BERTScore and Semantic Similarity
+### 5.2 BERTScore and Sentence Coherence
 
 BERTScore measures contextual semantic similarity by comparing sentence embeddings between the original text and summary. Unlike traditional word-overlap metrics, BERTScore captures semantic meaning even when different words are used.
 
 ```python
 class SummaryEvaluator:
     def _calculate_bert_score(self, original: str, summary: str) -> float
-    def _calculate_rouge_l_adapted(self, original: str, summary: str) -> float
+    def _calculate_sentence_coherence(self, text: str) -> float
     def _calculate_compression_quality(self, original: str, summary: str) -> float
 ```
 
-The adapted ROUGE-L implementation works without reference summaries by measuring longest common subsequences between the original text and generated summary, capturing structural preservation and word order.
+Sentence coherence measures the thematic continuity between consecutive sentences in the summary, ensuring the generated text flows naturally and maintains logical progression throughout the content.
 
 ### 5.3 Compression Quality Assessment
 
 The system evaluates compression quality by analyzing the ratio between original and summary text, ensuring optimal summarization that's neither too brief (information loss) nor too verbose (insufficient synthesis).
 
-```python
-def _calculate_compression_quality(self, original: str, summary: str) -> float:
-    # Optimal ratios based on text length:
-    # Short text (<200 words): 30-70%
-    # Medium text (<1000 words): 10-30% 
-    # Long text (>1000 words): 5-15%
-```
-
 Compression quality combines ratio optimization with information density measurement, rewarding summaries that maintain high informative content while achieving appropriate length reduction.
 
 ### 5.4 Quality Scoring and Interpretation
 
-The system uses clear quality thresholds to categorize summary performance across all metrics:
+The system uses clear quality thresholds to categorize summary performance across all metrics.
 
-```python
-class SummaryEvaluator:
-    def _calculate_simple_overall(self, bert_score, rouge_l, compression_quality, 
-                                 word_overlap, sentence_coherence) -> float:
-        # Weighted scoring:
-        # BERTScore: 35% (most reliable)
-        # ROUGE-L: 25% (structure)
-        # Compression Quality: 20% (efficiency)
-        # Word Overlap: 10% (basic verification)
-        # Sentence Coherence: 10% (fluidity)
-```
+The overall score provides a single reliable metric combining all evaluation dimensions, with scores above 0.7 indicating high-quality summaries and scores above 0.5 indicating acceptable quality. The enhanced weight on sentence coherence (35%) makes the system more suitable for evaluating abstractive summaries that use different words but maintain semantic meaning and logical flow.
 
-The overall score provides a single reliable metric combining all evaluation dimensions, with scores above 0.7 indicating high-quality summaries and scores above 0.5 indicating acceptable quality.
-
-### 5.5 Continuous Quality Monitoring
-
-The evaluation system tracks quality trends over time to identify patterns and potential issues. This helps with system maintenance and improvement.
-
-```python
-def track_quality_trends(self, evaluation_result)
-def trigger_quality_alert(self, message)
-```
-
-The monitoring system can detect when summary quality drops, which might indicate model issues, input data problems, or system configuration changes that need attention.
 
 ### 5.5 Model Performance Evaluation
 
@@ -401,15 +322,13 @@ The evaluation system automatically tracks model performance across different me
 class SummaryEvaluator:
     def evaluate_summary(self, original_text: str, generated_summary: str, 
                         model_name: str, processing_time: float) -> EvaluationReport
-    def batch_evaluate(self, summaries: List[Dict[str, Any]]) -> List[EvaluationReport]
 ```
 
 **Performance Tracking:**
 - BERTScore effectiveness by model type
+- Sentence coherence assessment for abstractive vs extractive summaries
 - Processing time and resource usage
 - Compression quality optimization
-- Cost analysis (for OpenAI models)
-- Multilingual performance comparison
 
 
 
@@ -427,14 +346,6 @@ class SystemMetrics:
     memory_percent: float         # RAM usage percentage
     memory_used_mb: float        # Used memory in MB
     disk_usage_percent: float    # Disk usage percentage
-    gpu_memory_mb: Optional[float] # GPU memory (if available)
-
-    
-class MetricsCollector:
-    def collect_system_metrics(self) -> SystemMetrics
-    def start_collection(self, interval: int = 30)
-    def stop_collection(self)
-    def get_metrics_history(self, hours: int = 24) -> List[SystemMetrics]
 ```
 
 The collector runs in a background thread and stores metrics in SQLite for historical analysis. It can detect resource bottlenecks and performance degradation automatically.
@@ -447,65 +358,18 @@ Every summarization request is tracked with detailed performance metrics includi
 @dataclass 
 class PerformanceMetrics:
     timestamp: str
-    operation: str               # Type of operation performed
     model_name: str             # Model used for processing
     processing_time: float      # Time taken in seconds
     input_length: int           # Input text length in tokens
     output_length: int          # Output summary length in tokens
     success: bool               # Operation success status
-    error_message: Optional[str] # Error details if failed
-    memory_peak_mb: float       # Peak memory usage
-    
-# Usage example with decorator
-@track_performance
-def summarize_text(text: str, model_type: str) -> SummaryResponse:
-    """Function automatically tracked for performance metrics"""
-    pass
 ```
 
 This tracking helps identify slow operations, memory leaks, and performance patterns across different content types and models.
 
-### 6.3 Alert System
 
-The monitoring system includes an intelligent alert system that can detect anomalies and notify administrators of potential issues.
 
-```python
-class AlertManager:
-    def add_alert_rule(self, name, condition, threshold, action)
-    def check_alerts(self)
-    def _trigger_alert(self, rule, metrics)
-```
-```
-
-Alerts can be configured for various conditions like high resource usage, error rates, slow processing times, or model failures.
-
-### 6.4 Business Metrics
-
-The system tracks business-relevant metrics to understand usage patterns and system effectiveness.
-
-```python
-@dataclass
-class BusinessMetrics:
-    timestamp: str
-    total_requests: int          # Total API requests
-    successful_requests: int     # Successful operations
-    failed_requests: int         # Failed operations
-    avg_processing_time: float   # Average response time
-    unique_users: int           # Unique users in period
-    most_used_model: str        # Most popular model
-    total_characters_processed: int # Volume processed
-    cost_tracking: Dict[str, float] # OpenAI usage costs
-
-class BusinessMetricsTracker:
-    def record_request(self, user_id: str, model_used: str, 
-                      processing_time: float, success: bool)
-    def get_current_metrics(self) -> BusinessMetrics
-    def get_usage_trends(self, days: int = 30) -> List[BusinessMetrics]
-```
-
-These metrics help understand user behavior, popular models, processing volumes, and system effectiveness over time.
-
-### 6.5 Performance Optimization
+### 6.3 Performance Optimization
 
 The monitoring data is used to automatically optimize system performance. The system can adjust model parameters, manage memory usage, and balance load based on observed patterns.
 
@@ -518,7 +382,7 @@ class PerformanceOptimizer:
 
 The optimizer runs periodically and makes automatic adjustments to maintain optimal performance without manual intervention.
 
-### 6.6 Dashboard and Reporting
+### 6.4 Dashboard and Reporting
 
 All monitoring data is visualized through interactive dashboards that provide both real-time views and historical analysis.
 
@@ -529,6 +393,7 @@ def render_performance_dashboard(self):
 ```
 
 The dashboard includes charts for processing times, error rates, resource usage, model performance comparisons, and user activity patterns.
+
 
 ## 7. Current Implementation and Deployment
 
@@ -588,18 +453,10 @@ Monitoring is handled by the `MetricsCollector` class with SQLite storage and co
 ### Production Deployment
 - **Container Deployment**: Docker containerization with multi-stage builds
 - **Cloud Deployment**: Support for AWS, Azure, GCP with container orchestration
-- **Load Balancing**: Horizontal scaling with multiple API instances
 - **Database Migration**: PostgreSQL/MySQL support for production environments
-
-### Security Enhancements
-- **API Authentication**: Token-based authentication system
-- **Rate Limiting**: Request throttling and quota management
-- **Input Validation**: Enhanced security for user inputs
-- **Environment Security**: Secrets management and secure configuration
 
 ### Advanced Monitoring
 - **External Integration**: Prometheus/Grafana integration
-- **Advanced Alerting**: Smart anomaly detection and notification systems
 - **Performance Analytics**: Advanced performance profiling and optimization
 - **Business Intelligence**: Enhanced usage analytics and reporting
 
@@ -607,7 +464,6 @@ Monitoring is handled by the `MetricsCollector` class with SQLite storage and co
 - **Model Serving**: Distributed model serving across multiple instances
 - **Caching Strategy**: Redis/Memcached integration for improved performance
 - **Queue System**: Asynchronous processing with task queues
-- **Auto-scaling**: Dynamic resource allocation based on demand
 
 ## 8. Testing Guide
 
@@ -733,7 +589,6 @@ Test system performance with different content types and models:
 
 **LED Model Testing:**
 - Test with long documents (>5000 words)
-- Verify GPU acceleration on Apple Silicon
 - Check memory usage during processing
 - Measure processing times for different lengths
 
@@ -745,7 +600,6 @@ Test system performance with different content types and models:
 
 **Quality Evaluation:**
 - Enable evaluation mode in interface
-- Compare ROUGE scores across models
 - Test semantic similarity measurements
 - Verify coherence assessments
 
@@ -797,26 +651,10 @@ The project includes detailed logging to help diagnose issues. Check log files i
 **⏳ Planned Features:**
 - Audio-to-text transcription (Whisper integration)
 - Advanced A/B testing framework
-- User authentication system
-- Production deployment tools
-- Advanced security measures
 - Distributed model serving
 
-### 9.2 Performance Benchmarks
 
-**LED Model (Apple M2 Pro, 16GB RAM):**
-- Short summary (150 tokens): ~8-12 seconds
-- Long summary (400 tokens): ~15-25 seconds
-- Memory usage: ~2-4GB peak
-- Throughput: ~50-100 tokens/second
-
-**OpenAI GPT-4 (API):**
-- Short summary: ~2-4 seconds
-- Long summary: ~3-6 seconds
-- Cost: ~$0.01-0.05 per summary
-- Rate limit: 10,000 tokens/minute
-
-### 9.3 Known Issues and Workarounds
+### 9.2 Known Issues and Workarounds
 
 1. **Memory Leaks**: LED model may accumulate memory over time
    - *Workaround*: Restart application after processing large batches
@@ -827,10 +665,9 @@ The project includes detailed logging to help diagnose issues. Check log files i
 3. **Large File Processing**: Files >500MB may cause timeouts
    - *Workaround*: Split large content into smaller chunks
 
-4. **Concurrent Requests**: Limited support for parallel processing
-   - *Workaround*: Use batch API endpoints for multiple items
 
-### 9.4 Contributing Guidelines
+
+### 9.3 Contributing Guidelines
 
 **Development Setup:**
 ```bash
@@ -841,17 +678,7 @@ cd video-summarizer
 # Set up development environment
 python scripts/install.py
 source video-summarizer-env/bin/activate
-
-# Run tests before contributing
-python -m pytest tests/
 ```
-
-**Code Quality Standards:**
-- Type hints for all functions
-- Docstring documentation (Google style)
-- Unit tests for new features
-- Performance benchmarks for model changes
-- Security review for API modifications
 
 ---
 
