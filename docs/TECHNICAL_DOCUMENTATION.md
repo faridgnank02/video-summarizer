@@ -679,8 +679,4 @@ cd video-summarizer
 python scripts/install.py
 source video-summarizer-env/bin/activate
 ```
-
 ---
-
-
-```
