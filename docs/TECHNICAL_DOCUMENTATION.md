@@ -69,20 +69,20 @@ src/
 
 The system checks transcript quality before processing and gives confidence scores for the summaries it creates. If something goes wrong with the main model, backup systems kick in automatically.
 
-Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses several methods including ROUGE scores, semantic similarity, and custom metrics to measure how good the summaries are.
+Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses reliable metrics including BERTScore for semantic similarity, adapted ROUGE-L for structure preservation, and compression quality assessment.
 
-```python
 ```python
 @dataclass
 class EvaluationMetrics:
-    rouge_1_f: float              # ROUGE-1 F1 score
-    rouge_2_f: float              # ROUGE-2 F1 score  
-    rouge_l_f: float              # ROUGE-L F1 score
-    semantic_similarity: float     # Sentence embedding similarity
-    coherence_score: float        # Text flow and readability
-    overall_score: float          # Weighted combined score
+    bert_score: float              # BERTScore - Contextual semantic similarity
+    rouge_l_adapted: float         # Adapted ROUGE-L - Structure and word order
+    compression_quality: float     # Compression with quality control
+    word_overlap_ratio: float      # Important words overlap
+    sentence_coherence: float      # True coherence between sentences
+    overall_score: float          # Simplified global score
     processing_time: float        # Generation time in seconds
-    model_confidence: float       # Model certainty (0-1)
+    model_used: str               # Name of the model used
+    timestamp: str                # Evaluation timestamp
 ```
 ```
 
@@ -307,7 +307,6 @@ class SecurityManager:
 ```
 
 **Current Limitations:**
-- ⚠️ No user authentication system
 - ⚠️ Basic rate limiting implementation
 - ⚠️ Local file storage (not encrypted)
 - ⚠️ Single-instance deployment only
@@ -323,53 +322,65 @@ class SecurityManager:
 
 ### 5.1 Automatic Quality Assessment
 
-The system includes a comprehensive evaluation framework that automatically assesses summary quality using multiple metrics. This helps users understand how good their summaries are and helps the system improve over time.
+The system includes a simplified and reliable evaluation framework that automatically assesses summary quality using three main metrics: BERTScore for contextual semantic similarity, adapted ROUGE-L for structural preservation, and compression quality for optimal summarization ratios.
 
 ```python
 @dataclass
 class EvaluationMetrics:
-    rouge_1_f, rouge_2_f, rouge_l_f: float
-    semantic_similarity, coherence_score: float  
-    overall_score: float
+    bert_score: float              # BERTScore - Contextual semantic similarity (0.6+ = good, 0.8+ = excellent)
+    rouge_l_adapted: float         # Adapted ROUGE-L - Structure preservation (0.3+ = acceptable, 0.5+ = good)
+    compression_quality: float     # Compression with quality control (0.7-0.9 = optimal)
+    word_overlap_ratio: float      # Important words overlap
+    sentence_coherence: float      # Coherence between sentences
+    overall_score: float          # Weighted average of all metrics
 ```
-```
 
-The evaluation happens automatically when users request it, providing immediate feedback on summary quality. This helps users decide if they need to try different settings or models.
+The evaluation happens automatically when users request it, providing immediate feedback on summary quality with clear, interpretable scores.
 
-### 5.2 ROUGE Metrics Implementation
+### 5.2 BERTScore and Semantic Similarity
 
-ROUGE (Recall-Oriented Understudy for Gisting Evaluation) scores measure how much overlap exists between the generated summary and reference texts. The system calculates multiple ROUGE variants to get a complete picture.
+BERTScore measures contextual semantic similarity by comparing sentence embeddings between the original text and summary. Unlike traditional word-overlap metrics, BERTScore captures semantic meaning even when different words are used.
 
 ```python
 class SummaryEvaluator:
-    def calculate_rouge_scores(self, generated_summary, reference_text)
-    def calculate_semantic_similarity(self, summary, original_text)
+    def _calculate_bert_score(self, original: str, summary: str) -> float
+    def _calculate_rouge_l_adapted(self, original: str, summary: str) -> float
+    def _calculate_compression_quality(self, original: str, summary: str) -> float
 ```
 
-ROUGE-1 measures word overlap, ROUGE-2 looks at two-word phrases, and ROUGE-L finds the longest matching sequences. Higher scores generally mean better summaries, but they need to be interpreted alongside other metrics.
+The adapted ROUGE-L implementation works without reference summaries by measuring longest common subsequences between the original text and generated summary, capturing structural preservation and word order.
 
-### 5.3 Semantic Similarity Analysis
+### 5.3 Compression Quality Assessment
 
-Beyond word overlap, the system measures how well the summary preserves the original meaning using sentence embeddings and cosine similarity.
+The system evaluates compression quality by analyzing the ratio between original and summary text, ensuring optimal summarization that's neither too brief (information loss) nor too verbose (insufficient synthesis).
 
 ```python
-def assess_coherence(self, text)
-def _analyze_sentence_flow(self, sentences)
+def _calculate_compression_quality(self, original: str, summary: str) -> float:
+    # Optimal ratios based on text length:
+    # Short text (<200 words): 30-70%
+    # Medium text (<1000 words): 10-30% 
+    # Long text (>1000 words): 5-15%
 ```
 
-Semantic similarity helps catch cases where a summary uses different words but preserves meaning, while coherence analysis ensures the summary flows well and makes sense.
+Compression quality combines ratio optimization with information density measurement, rewarding summaries that maintain high informative content while achieving appropriate length reduction.
 
-### 5.4 Quality Thresholds and Recommendations
+### 5.4 Quality Scoring and Interpretation
 
-The system uses configurable quality thresholds to categorize summaries and provide recommendations to users.
+The system uses clear quality thresholds to categorize summary performance across all metrics:
 
 ```python
-class QualityAssessment:
-    def assess_and_recommend(self, metrics)
-    def get_quality_category(self, score)
+class SummaryEvaluator:
+    def _calculate_simple_overall(self, bert_score, rouge_l, compression_quality, 
+                                 word_overlap, sentence_coherence) -> float:
+        # Weighted scoring:
+        # BERTScore: 35% (most reliable)
+        # ROUGE-L: 25% (structure)
+        # Compression Quality: 20% (efficiency)
+        # Word Overlap: 10% (basic verification)
+        # Sentence Coherence: 10% (fluidity)
 ```
 
-The system provides specific recommendations based on which metrics are low. For example, low semantic similarity might suggest trying a different model, while low coherence might indicate input text quality issues.
+The overall score provides a single reliable metric combining all evaluation dimensions, with scores above 0.7 indicating high-quality summaries and scores above 0.5 indicating acceptable quality.
 
 ### 5.5 Continuous Quality Monitoring
 
@@ -382,24 +393,25 @@ def trigger_quality_alert(self, message)
 
 The monitoring system can detect when summary quality drops, which might indicate model issues, input data problems, or system configuration changes that need attention.
 
-### 5.6 Model Comparison and Analysis
+### 5.5 Model Performance Evaluation
 
-The system provides built-in model comparison capabilities to help users choose the optimal approach:
+The evaluation system automatically tracks model performance across different metrics, enabling data-driven model selection:
 
 ```python
-class ModelComparison:
-    def compare_models(self, text: str, models: List[str]) -> ComparisonResult
-    def benchmark_performance(self, test_cases: List[str]) -> BenchmarkReport
-    def generate_comparison_report(self, results: List[SummaryResponse]) -> str
+class SummaryEvaluator:
+    def evaluate_summary(self, original_text: str, generated_summary: str, 
+                        model_name: str, processing_time: float) -> EvaluationReport
+    def batch_evaluate(self, summaries: List[Dict[str, Any]]) -> List[EvaluationReport]
 ```
 
-**Comparison Metrics:**
+**Performance Tracking:**
+- BERTScore effectiveness by model type
 - Processing time and resource usage
-- Summary quality (ROUGE scores)
+- Compression quality optimization
 - Cost analysis (for OpenAI models)
-- User preference ratings
+- Multilingual performance comparison
 
-**Note:** Advanced A/B testing framework is planned for future releases to enable systematic parameter optimization and model selection strategies.
+
 
 ## 6. Monitoring and Performance
 
@@ -416,7 +428,7 @@ class SystemMetrics:
     memory_used_mb: float        # Used memory in MB
     disk_usage_percent: float    # Disk usage percentage
     gpu_memory_mb: Optional[float] # GPU memory (if available)
-    active_connections: int      # Number of active users
+
     
 class MetricsCollector:
     def collect_system_metrics(self) -> SystemMetrics
@@ -843,8 +855,5 @@ python -m pytest tests/
 
 ---
 
-**Project Maintainer:** faridgnank02  
-**Last Updated:** October 2025  
-**Version:** 2.0.0  
-**License:** MIT License
+
 ```

@@ -370,19 +370,20 @@ class VideoSummarizerApp:
                                 
                                 col1, col2, col3, col4 = st.columns(4)
                                 with col1:
-                                    st.metric("📊 Overall Score", f"{evaluation_data.overall_score:.3f}")
+                                    st.metric("🏆 Overall Score", f"{evaluation_data.overall_score:.3f}")
                                 with col2:
-                                    st.metric("🔗 Similarity", f"{evaluation_data.semantic_similarity:.3f}")
+                                    st.metric("🧠 BERTScore", f"{evaluation_data.bert_score:.3f}")
                                 with col3:
-                                    st.metric("📏 Coherence", f"{evaluation_data.coherence_score:.3f}")
+                                    st.metric("📏 ROUGE-L", f"{evaluation_data.rouge_l_adapted:.3f}")
                                 with col4:
-                                    st.metric("📖 Readability", f"{evaluation_data.readability_score:.3f}")
+                                    st.metric("�️ Compression", f"{evaluation_data.compression_quality:.3f}")
                                 
-                                # Recommendations
-                                if hasattr(evaluation, 'recommendations') and evaluation.recommendations:
-                                    with st.expander("💡 Improvement Recommendations"):
-                                        for rec in evaluation.recommendations[:3]:  # Top 3 recommendations
-                                            st.write(f"• {rec}")
+                                # Secondary metrics
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.metric("🔗 Coherence", f"{evaluation_data.sentence_coherence:.3f}")
+                                with col2:
+                                    st.metric("🎯 Keywords", f"{evaluation_data.word_overlap_ratio:.3f}")
                     except Exception as e:
                         st.warning(f"Evaluation unavailable: {e}")
                 
@@ -478,9 +479,9 @@ Summary:
                             with sub_col1:
                                 st.write(f"Score: {eval_data.get('overall_score', 0):.3f}")
                             with sub_col2:
-                                st.write(f"Similarity: {eval_data.get('semantic_similarity', 0):.3f}")
+                                st.write(f"BERT: {eval_data.get('bert_score', eval_data.get('semantic_similarity', 0)):.3f}")
                             with sub_col3:
-                                st.write(f"Coherence: {eval_data.get('coherence_score', 0):.3f}")
+                                st.write(f"ROUGE-L: {eval_data.get('rouge_l_adapted', 0):.3f}")
                     
                     with col2:
                         st.metric("Model", item['model_type'])

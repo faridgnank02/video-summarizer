@@ -424,46 +424,55 @@ class MonitoringDashboard:
                             model_name=model_name
                         )
                         
-                        # Affichage des résultats
-                        st.success("✅ Évaluation terminée")
+                        # Affichage des résultats avec métriques
+                        st.success("✅ Evaluation completed")
                         
-                        col1, col2, col3 = st.columns(3)
+                        col1, col2, col3, col4 = st.columns(4)
                         
                         with col1:
-                            st.metric("Score global", f"{report.metrics.overall_score:.3f}")
+                            st.metric("🏆 Overall Score", f"{report.metrics.overall_score:.3f}")
                         
                         with col2:
-                            st.metric("Similarité sémantique", f"{report.metrics.semantic_similarity:.3f}")
+                            st.metric("🧠 BERTScore", f"{report.metrics.bert_score:.3f}")
                         
                         with col3:
-                            st.metric("Cohérence", f"{report.metrics.coherence_score:.3f}")
+                            st.metric("📏 ROUGE-L", f"{report.metrics.rouge_l_adapted:.3f}")
                         
-                        # Détails des métriques
-                        st.subheader("📈 Métriques détaillées")
+                        with col4:
+                            st.metric("🗜️ Compression", f"{report.metrics.compression_quality:.3f}")
+                        
+                        # Secondary metrics
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.metric("🔗 Coherence", f"{report.metrics.sentence_coherence:.3f}")
+                        
+                        with col2:
+                            st.metric("🎯 Keywords", f"{report.metrics.word_overlap_ratio:.3f}")
+                        
+                        # Detailed metrics
+                        st.subheader("📈 Detailed Metrics")
                         
                         metrics_data = {
-                            "Métrique": ["ROUGE-1 F", "ROUGE-2 F", "ROUGE-L F", "Lisibilité", "Compression"],
+                            "Metric": ["BERTScore (Similarity)", "Adapted ROUGE-L", "Compression Quality", "Sentence Coherence", "Important Words"],
                             "Score": [
-                                report.metrics.rouge_1_f,
-                                report.metrics.rouge_2_f,
-                                report.metrics.rouge_l_f,
-                                report.metrics.readability_score,
-                                report.metrics.compression_ratio
+                                report.metrics.bert_score,
+                                report.metrics.rouge_l_adapted,
+                                report.metrics.compression_quality,
+                                report.metrics.sentence_coherence,
+                                report.metrics.word_overlap_ratio
                             ]
                         }
                         
                         df_metrics = pd.DataFrame(metrics_data)
                         
                         fig = px.bar(
-                            df_metrics, x="Métrique", y="Score",
-                            title="Distribution des métriques d'évaluation"
+                            df_metrics, x="Metric", y="Score",
+                            title="Evaluation metrics distribution"
                         )
                         st.plotly_chart(fig, use_container_width=True)
                         
-                        # Recommandations
-                        st.subheader("💡 Recommandations")
-                        for rec in report.recommendations:
-                            st.info(f"• {rec}")
+
                         
                     except Exception as e:
                         st.error(f"Erreur lors de l'évaluation: {e}")
