@@ -1,20 +1,12 @@
 # 🚀 Démarrage Rapide - Video Summarizer
 
-Guide express pour install| Problem | Solution |
-|----------|----------|
-| ModuleNotFoundError | `pip install -r requirements.txt` |
-| Mémoire insuffisante | Utilisez OpenAI au lieu de LED |
-| GPU M1 non utilisé | Vérifiez `config/model_config.yaml` → `device: auto` |
-| Erreur YouTube | `pip install --upgrade youtube-transcript-api` |
-| Pas de clé OpenAI | Utilisez uniquement le modèle LED |
-| **Modèle spaCy manquant** | `python -m spacy download en_core_web_sm` |
-| **NER ne fonctionne pas** | `python -m spacy download fr_core_news_sm` |tiliser le Video Summarizer en 5 minutes.
+Guide express pour installer et utiliser le Video Summarizer en 5 minutes.
 
 ## ⚡ Installation Express
 
 ```bash
-# 1. Installation automatique (inclut les modèles spaCy)
-python scripts/install.py
+# 1. Installation automatique
+python install.py
 
 # 2. Activation environnement
 source video-summarizer-env/bin/activate
@@ -23,14 +15,8 @@ source video-summarizer-env/bin/activate
 echo "OPENAI_API_KEY=sk-votre-clé" >> .env
 
 # 4. Lancement
-python scripts/launch.py
+python launch.py
 ```
-
-**📦 Ce qui est installé automatiquement :**
-- Dépendances Python depuis `requirements.txt`
-- **Modèles spaCy** : `en_core_web_sm`, `fr_core_news_sm` pour la reconnaissance d'entités
-- Configuration de l'environnement virtuel
-- Fichiers de configuration
 
 ## 🎯 Utilisation Immédiate
 

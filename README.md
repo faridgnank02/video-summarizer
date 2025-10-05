@@ -1,5 +1,10 @@
 # AI Video Summarizer
 
+<div align="center">
+  <img src="data/assets/demo-video.gif" alt="Multilingual Text-to-SQL Demo" width="800"/>
+  <p><em>Ask questions in any language - get SQL results instantly!</em></p>
+</div>
+
 **Transform your videos into intelligent summaries** with advanced AI models and comprehensive evaluation metrics.
 
 ## Features
