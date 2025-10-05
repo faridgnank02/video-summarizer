@@ -16,6 +16,16 @@ import re
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
+import string
+from collections import Counter
+
+# Import spaCy pour NER si disponible
+try:
+    import spacy
+    SPACY_AVAILABLE = True
+except ImportError:
+    SPACY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +38,7 @@ class EvaluationMetrics:
     compression_quality: float     # Compression with quality control
     
     # Additional simple metrics
-    word_overlap_ratio: float      # Important words overlap
-    sentence_coherence: float      # True coherence between sentences
+    word_overlap_ratio: float      # Hybrid NER + keyword overlap
     
     # Technical metrics
     processing_time: float
@@ -46,8 +55,8 @@ class EvaluationMetrics:
     
     @property
     def coherence_score(self) -> float:
-        """Compatibility: redirects to sentence_coherence"""
-        return self.sentence_coherence
+        """Compatibility: redirects to word_overlap for backward compatibility"""
+        return self.word_overlap_ratio
     
     @property
     def compression_ratio(self) -> float:
@@ -83,6 +92,22 @@ class SummaryEvaluator:
         
         # Initialize only necessary tools
         self.sentence_model = None
+        self.nlp_model = None
+        self.spacy_available = False
+        
+        # Stop words for multilingual support
+        self.french_stopwords = {
+            'le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'et', 'ou', 'mais', 
+            'donc', 'car', 'ni', 'or', 'ce', 'cette', 'ces', 'son', 'sa', 'ses',
+            'dans', 'sur', 'avec', 'par', 'pour', 'en', 'à', 'au', 'aux', 'est', 
+            'sont', 'était', 'ont', 'avoir', 'être', 'faire', 'dire', 'aller'
+        }
+        
+        self.english_stopwords = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have',
+            'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'
+        }
         
         if load_models:
             self._load_models()
@@ -95,8 +120,20 @@ class SummaryEvaluator:
             logger.info("Multilingual model loaded for BERTScore")
             
         except Exception as e:
-            logger.error(f"Error loading models: {e}")
+            logger.error(f"Error loading sentence model: {e}")
             self.sentence_model = None
+        
+        # Load spaCy model for NER if available
+        if SPACY_AVAILABLE:
+            try:
+                self.nlp_model = spacy.load('en_core_web_sm')
+                self.spacy_available = True
+                logger.info("spaCy model loaded for NER")
+            except OSError:
+                logger.warning("spaCy model 'en_core_web_sm' not available. NER will be disabled.")
+                self.spacy_available = False
+        else:
+            logger.warning("spaCy not installed. NER will be disabled.")
     
     def evaluate_summary(self,
                         original_text: str,
@@ -161,13 +198,12 @@ class SummaryEvaluator:
         # 2. Compression Ratio with quality control
         compression_quality = self._calculate_compression_quality(original_text, generated_summary)
         
-        # Simple metrics
+        # Hybrid word overlap (NER + Keywords)
         word_overlap = self._calculate_word_overlap(original_text, generated_summary)
-        sentence_coherence = self._calculate_sentence_coherence(generated_summary)
         
         # Global score (weighted average)
         overall = self._calculate_simple_overall(
-            bert_score, compression_quality, word_overlap, sentence_coherence
+            bert_score, compression_quality, word_overlap
         )
         
         return EvaluationMetrics(
@@ -175,7 +211,6 @@ class SummaryEvaluator:
             bert_score=bert_score,
             compression_quality=compression_quality,
             word_overlap_ratio=word_overlap,
-            sentence_coherence=sentence_coherence,
             # Technical metrics
             processing_time=processing_time,
             model_used=model_name,
@@ -298,70 +333,149 @@ class SummaryEvaluator:
     
     def _calculate_word_overlap(self, original: str, summary: str) -> float:
         """
-        Important words overlap
+        Hybrid word overlap using NER + Keywords
         
-        Simple measure: percentage of important words from summary present in original
+        Combines Named Entity Recognition for important entities
+        with keyword overlap for comprehensive coverage.
+        Falls back to keyword-only if NER unavailable.
+        
+        Score: 0-1 (higher = better overlap)
         """
-        original_words = set(w.lower() for w in re.findall(r'\b\w{4,}\b', original))
-        summary_words = set(w.lower() for w in re.findall(r'\b\w{4,}\b', summary))
+        if not original.strip() or not summary.strip():
+            return 0.0
+        
+        # Configuration des poids
+        ner_weight = 0.6  # Poids des entités nommées
+        keyword_weight = 0.4  # Poids des mots-clés
+        
+        # Composante NER
+        ner_f1 = self._calculate_ner_overlap(original, summary)
+        
+        # Composante keyword overlap
+        keyword_score = self._calculate_keyword_overlap(original, summary)
+        
+        # Score hybride pondéré
+        if self.spacy_available and ner_f1 > 0:
+            # Utiliser NER si disponible et pertinent
+            hybrid_score = ner_weight * ner_f1 + keyword_weight * keyword_score
+            logger.debug(f"Hybrid overlap: NER={ner_f1:.3f}, Keywords={keyword_score:.3f}, Combined={hybrid_score:.3f}")
+        else:
+            # Fallback vers keyword seulement
+            hybrid_score = keyword_score
+            logger.debug(f"Keyword-only overlap: {hybrid_score:.3f}")
+        
+        return min(1.0, hybrid_score)
+    
+    def _detect_language(self, text: str) -> str:
+        """Détection simple de langue basée sur les mots-outils"""
+        words = text.lower().split()
+        french_count = sum(1 for word in words if word in self.french_stopwords)
+        english_count = sum(1 for word in words if word in self.english_stopwords)
+        
+        return 'french' if french_count > english_count else 'english'
+    
+    def _extract_named_entities(self, text: str) -> list:
+        """Extraction des entités nommées si spaCy disponible"""
+        if not self.spacy_available or not self.nlp_model:
+            return []
+        
+        try:
+            doc = self.nlp_model(text)
+            entities = []
+            
+            # Types d'entités importantes
+            important_types = ['PERSON', 'ORG', 'GPE', 'DATE', 'MONEY', 'PRODUCT', 
+                             'EVENT', 'FAC', 'LOC', 'TIME', 'PERCENT']
+            
+            for ent in doc.ents:
+                if ent.label_ in important_types:
+                    entities.append({
+                        'text': ent.text.lower().strip(),
+                        'label': ent.label_
+                    })
+            
+            return entities
+        except Exception as e:
+            logger.warning(f"Erreur extraction NER: {e}")
+            return []
+    
+    def _calculate_ner_overlap(self, original: str, summary: str) -> float:
+        """Calcul de l'overlap des entités nommées"""
+        original_entities = self._extract_named_entities(original)
+        summary_entities = self._extract_named_entities(summary)
+        
+        if not original_entities and not summary_entities:
+            return 1.0  # Si aucune entité, considérer comme parfait
+        
+        if not original_entities or not summary_entities:
+            return 0.0
+        
+        original_set = set(ent['text'] for ent in original_entities)
+        summary_set = set(ent['text'] for ent in summary_entities)
+        
+        overlapping = original_set.intersection(summary_set)
+        
+        precision = len(overlapping) / len(summary_set) if summary_set else 0
+        recall = len(overlapping) / len(original_set) if original_set else 0
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        
+        return f1
+    
+    def _calculate_keyword_overlap(self, original: str, summary: str) -> float:
+        """Calcul d'overlap de mots-clés amélioré"""
+        # Préprocessing
+        def preprocess_text(text):
+            text = text.lower()
+            # Gérer apostrophes françaises
+            text = re.sub(r"\b[ldn]'", "", text)
+            text = text.translate(str.maketrans('', '', string.punctuation))
+            return text
+        
+        original_clean = preprocess_text(original)
+        summary_clean = preprocess_text(summary)
+        
+        # Détecter la langue pour les stop words
+        language = self._detect_language(original)
+        stopwords = self.french_stopwords if language == 'french' else self.english_stopwords
+        
+        # Extraire les mots significatifs (3+ caractères, pas de stop words)
+        original_words = set(w for w in original_clean.split() 
+                           if len(w) >= 3 and w not in stopwords)
+        summary_words = set(w for w in summary_clean.split() 
+                          if len(w) >= 3 and w not in stopwords)
         
         if not summary_words:
             return 0.0
         
-        overlap = len(original_words & summary_words) / len(summary_words)
-        return min(1.0, overlap)
+        overlap_words = original_words.intersection(summary_words)
+        return len(overlap_words) / len(summary_words)
     
-    def _calculate_sentence_coherence(self, text: str) -> float:
-        """
-        Sentence coherence
-        
-        Measures thematic continuity between consecutive sentences
-        """
-        if not self.sentence_model:
-            return 0.8  # Default score
-        
-        sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
-        
-        if len(sentences) < 2:
-            return 1.0  # Single sentence = coherent by default
-        
-        try:
-            embeddings = self.sentence_model.encode(sentences)
-            
-            # Calculate similarity between consecutive sentences
-            coherence_scores = []
-            for i in range(len(embeddings) - 1):
-                sim = cosine_similarity([embeddings[i]], [embeddings[i + 1]])[0][0]
-                coherence_scores.append(max(0, sim))  # Avoid negative scores
-            
-            return float(np.mean(coherence_scores))
-            
-        except Exception as e:
-            logger.warning(f"Coherence error: {e}")
-            return 0.8
+    def _simple_word_overlap(self, original: str, summary: str) -> float:
+        """Fallback simple word overlap method (deprecated, kept for compatibility)"""
+        return self._calculate_keyword_overlap(original, summary)
+    
+
     
     def _calculate_simple_overall(self, bert_score: float, 
-                                 compression_quality: float, word_overlap: float,
-                                 sentence_coherence: float) -> float:
+                                 compression_quality: float, word_overlap: float) -> float:
         """
-        Global score with balanced weights
-        
-        Weights based on importance and reliability of metrics
-        ROUGE-L weight (0.25) redistributed to sentence_coherence (0.10 -> 0.35)
+        Global score with redistributed weights (after removing sentence coherence)
         """
         weights = {
-            'bert_score': 0.35,          # Most reliable metric
-            'compression_quality': 0.20,  # Summary efficiency
-            'word_overlap': 0.10,        # Basic verification
-            'sentence_coherence': 0.35   # Fluidity + structure
+            'bert_score': 0.50,          # Increased: Most reliable semantic metric
+            'compression_quality': 0.20,  # Unchanged: Summary efficiency
+            'word_overlap': 0.30,        # Increased: Hybrid NER+keyword overlap
         }
         
         overall = (
             weights['bert_score'] * bert_score +
             weights['compression_quality'] * compression_quality +
-            weights['word_overlap'] * word_overlap +
-            weights['sentence_coherence'] * sentence_coherence
+            weights['word_overlap'] * word_overlap
         )
+        
+        logger.debug(f"Overall score: BERT={bert_score:.3f}({weights['bert_score']}), "
+                    f"Compression={compression_quality:.3f}({weights['compression_quality']}), "
+                    f"WordOverlap={word_overlap:.3f}({weights['word_overlap']}) = {overall:.3f}")
         
         return min(1.0, overall)
     

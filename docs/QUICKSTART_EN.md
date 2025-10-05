@@ -5,7 +5,7 @@ Express guide to install and use Video Summarizer in 5 minutes.
 ## ⚡ Express Installation
 
 ```bash
-# 1. Automated installation
+# 1. Automated installation (includes spaCy models download)
 python scripts/install.py
 
 # 2. Activate environment
@@ -17,6 +17,12 @@ echo "OPENAI_API_KEY=sk-your-key" >> .env
 # 4. Launch
 python scripts/launch.py
 ```
+
+**📦 What gets installed automatically:**
+- Python dependencies from `requirements.txt`
+- **spaCy models**: `en_core_web_sm`, `fr_core_news_sm` for NER
+- Virtual environment setup
+- Configuration files
 
 ## 🎯 Immediate Usage
 
@@ -67,6 +73,8 @@ print(f'Device: {led.device}')  # Should display 'mps'
 | M1 GPU not used | Check `config/model_config.yaml` → `device: auto` |
 | YouTube error | `pip install --upgrade youtube-transcript-api` |
 | No OpenAI key | Use LED model only |
+| **spaCy model missing** | `python -m spacy download en_core_web_sm` |
+| **NER not working** | `python -m spacy download fr_core_news_sm` |
 
 ## 📊 Model Comparison Quick Reference
 
@@ -75,6 +83,7 @@ print(f'Device: {led.device}')  # Should display 'mps'
 - ✅ Works offline
 - ✅ Best for English content
 - ✅ GPU accelerated on M1 Macs
+- ✅ **Enhanced with spaCy NER** for better evaluation
 - ⏱️ ~5-10 seconds processing
 - 📝 Extractive style (preserves original phrasing)
 

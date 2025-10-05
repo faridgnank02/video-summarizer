@@ -427,7 +427,7 @@ class MonitoringDashboard:
                         # Affichage des résultats avec métriques
                         st.success("✅ Evaluation completed")
                         
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3 = st.columns(3)
                         
                         with col1:
                             st.metric("🏆 Overall Score", f"{report.metrics.overall_score:.3f}")
@@ -436,30 +436,22 @@ class MonitoringDashboard:
                             st.metric("🧠 BERTScore", f"{report.metrics.bert_score:.3f}")
                         
                         with col3:
-                            st.metric("📏 ROUGE-L", f"{report.metrics.rouge_l_adapted:.3f}")
-                        
-                        with col4:
-                            st.metric("🗜️ Compression", f"{report.metrics.compression_quality:.3f}")
+                            st.metric("️ Compression", f"{report.metrics.compression_quality:.3f}")
                         
                         # Secondary metrics
-                        col1, col2 = st.columns(2)
+                        col1 = st.columns(1)[0]
                         
                         with col1:
-                            st.metric("🔗 Coherence", f"{report.metrics.sentence_coherence:.3f}")
-                        
-                        with col2:
-                            st.metric("🎯 Keywords", f"{report.metrics.word_overlap_ratio:.3f}")
+                            st.metric("🎯 Word Overlap (NER+Keywords)", f"{report.metrics.word_overlap_ratio:.3f}")
                         
                         # Detailed metrics
                         st.subheader("📈 Detailed Metrics")
                         
                         metrics_data = {
-                            "Metric": ["BERTScore (Similarity)", "Adapted ROUGE-L", "Compression Quality", "Sentence Coherence", "Important Words"],
+                            "Metric": ["BERTScore (Semantic Similarity)", "Compression Quality", "Word Overlap (NER+Keywords)"],
                             "Score": [
                                 report.metrics.bert_score,
-                                report.metrics.rouge_l_adapted,
                                 report.metrics.compression_quality,
-                                report.metrics.sentence_coherence,
                                 report.metrics.word_overlap_ratio
                             ]
                         }

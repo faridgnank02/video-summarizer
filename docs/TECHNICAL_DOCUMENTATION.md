@@ -69,18 +69,22 @@ src/
 
 The system checks transcript quality before processing and gives confidence scores for the summaries it creates. If something goes wrong with the main model, backup systems kick in automatically.
 
-Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses reliable metrics including BERTScore for semantic similarity, sentence coherence for flow assessment, and compression quality for optimal summarization ratios.
+Real-time monitoring keeps track of how the system is performing and how people are using it. The quality checking uses an advanced **hybrid evaluation framework** that combines multiple AI models:
+
+- **Sentence Transformers** (`paraphrase-multilingual-MiniLM-L12-v2`) for semantic similarity
+- **spaCy NER** (`en_core_web_sm`) for Named Entity Recognition  
+- **Hybrid Word Overlap** combining NER (60%) + Keywords (40%) for content coverage
+- **Intelligent compression analysis** with adaptive targets based on text length
 
 ```python
 @dataclass
 class EvaluationMetrics:
-    bert_score: float              # BERTScore - Contextual semantic similarity
-    compression_quality: float     # Compression with quality control
-    word_overlap_ratio: float      # Important words overlap
-    sentence_coherence: float      # True coherence between sentences
-    overall_score: float          # Simplified global score
-    processing_time: float        # Generation time in seconds
-    model_used: str               # Name of the model used
+    bert_score: float              # Semantic similarity via sentence-transformers
+    compression_quality: float     # Intelligent compression with density analysis
+    word_overlap_ratio: float      # Hybrid NER + Keywords overlap (60% + 40%)
+    overall_score: float          # Weighted: 50% BERT + 20% Compression + 30% WordOverlap
+    processing_time: float        # Evaluation processing time
+    model_used: str               # Model used for summary generation
     timestamp: str                # Evaluation timestamp
 ```
 
@@ -272,63 +276,177 @@ Configuration changes are detected automatically and applied without requiring s
 
 ## 5. Evaluation and Quality Assurance
 
-### 5.1 Automatic Quality Assessment
+### 5.1 Hybrid Evaluation Framework
 
-The system includes a simplified and reliable evaluation framework that automatically assesses summary quality using three main metrics: BERTScore for contextual semantic similarity, sentence coherence for text flow assessment, and compression quality for optimal summarization ratios.
+The system implements an advanced hybrid evaluation framework that combines multiple AI models and NLP techniques to provide comprehensive summary quality assessment. The evaluation uses three core metrics powered by state-of-the-art models:
 
 ```python
 @dataclass
 class EvaluationMetrics:
-    bert_score: float              # BERTScore - Contextual semantic similarity (0.6+ = good, 0.8+ = excellent)
-    compression_quality: float     # Compression with quality control (0.7-0.9 = optimal)
-    word_overlap_ratio: float      # Important words overlap
-    sentence_coherence: float      # Coherence between sentences
-    overall_score: float          # Weighted average of all metrics
+    bert_score: float              # Semantic similarity via sentence-transformers
+    compression_quality: float     # Intelligent compression with density analysis
+    word_overlap_ratio: float      # Hybrid NER + Keywords overlap (60% NER + 40% Keywords)
+    
+    # Technical metadata
+    processing_time: float         # Evaluation processing time
+    model_used: str               # Model used for summary generation
+    timestamp: str                # Evaluation timestamp
+    overall_score: float          # Weighted combination (50% BERT + 20% Compression + 30% WordOverlap)
 ```
 
-The evaluation happens automatically when users request it, providing immediate feedback on summary quality with clear, interpretable scores.
+The evaluation leverages multiple AI models:
+- **sentence-transformers** (`paraphrase-multilingual-MiniLM-L12-v2`) for semantic similarity
+- **spaCy** (`en_core_web_sm`) for Named Entity Recognition
+- **scikit-learn** TF-IDF vectorization for keyword importance
+- **Custom multilingual processing** for French/English content
 
-### 5.2 BERTScore and Sentence Coherence
+### 5.2 Semantic Similarity with Sentence Transformers
 
-BERTScore measures contextual semantic similarity by comparing sentence embeddings between the original text and summary. Unlike traditional word-overlap metrics, BERTScore captures semantic meaning even when different words are used.
+The system uses **sentence-transformers** library with the `paraphrase-multilingual-MiniLM-L12-v2` model to compute contextual semantic similarity. This approach captures meaning beyond simple word overlap:
 
 ```python
 class SummaryEvaluator:
-    def _calculate_bert_score(self, original: str, summary: str) -> float
-    def _calculate_sentence_coherence(self, text: str) -> float
-    def _calculate_compression_quality(self, original: str, summary: str) -> float
+    def __init__(self, load_models: bool = True):
+        self.sentence_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+        
+    def _calculate_bert_score(self, original: str, summary: str) -> float:
 ```
 
-Sentence coherence measures the thematic continuity between consecutive sentences in the summary, ensuring the generated text flows naturally and maintains logical progression throughout the content.
+**Key Features:**
+- **Multilingual Support**: Works with French, English, and other languages
+- **Sentence-Level Analysis**: Compares semantic meaning at sentence level
+- **Contextual Understanding**: Captures paraphrasing and semantic equivalence
+- **Score Range**: 0.0-1.0 (0.6+ = good, 0.8+ = excellent)
 
-### 5.3 Compression Quality Assessment
+### 5.3 Intelligent Compression Quality Assessment
 
-The system evaluates compression quality by analyzing the ratio between original and summary text, ensuring optimal summarization that's neither too brief (information loss) nor too verbose (insufficient synthesis).
-
-Compression quality combines ratio optimization with information density measurement, rewarding summaries that maintain high informative content while achieving appropriate length reduction.
-
-### 5.4 Quality Scoring and Interpretation
-
-The system uses clear quality thresholds to categorize summary performance across all metrics.
-
-The overall score provides a single reliable metric combining all evaluation dimensions, with scores above 0.7 indicating high-quality summaries and scores above 0.5 indicating acceptable quality. The enhanced weight on sentence coherence (35%) makes the system more suitable for evaluating abstractive summaries that use different words but maintain semantic meaning and logical flow.
-
-
-### 5.5 Model Performance Evaluation
-
-The evaluation system automatically tracks model performance across different metrics, enabling data-driven model selection:
+The compression quality metric evaluates both the compression ratio and information density to ensure optimal summarization effectiveness:
 
 ```python
-class SummaryEvaluator:
-    def evaluate_summary(self, original_text: str, generated_summary: str, 
-                        model_name: str, processing_time: float) -> EvaluationReport
+def _calculate_compression_quality(self, original: str, summary: str) -> float:
 ```
 
-**Performance Tracking:**
-- BERTScore effectiveness by model type
-- Sentence coherence assessment for abstractive vs extractive summaries
-- Processing time and resource usage
-- Compression quality optimization
+**Adaptive Compression Targets:**
+- **Short texts (<200 words)**: 30-70% retention optimal
+- **Medium texts (200-1000 words)**: 10-30% retention optimal  
+- **Long texts (>1000 words)**: 5-15% retention optimal
+
+**Information Density Calculation:**
+- Filters out stop words in multiple languages (French/English)
+- Rewards high concentration of meaningful content
+- Penalizes summaries with excessive filler words
+
+### 5.4 Hybrid Word Overlap: NER + Keywords Integration
+
+The most innovative aspect of the evaluation framework is the hybrid word overlap metric that combines Named Entity Recognition with keyword analysis:
+
+```python
+def _calculate_word_overlap(self, original: str, summary: str) -> float:
+```
+
+#### 5.4.1 Named Entity Recognition Component
+
+Uses **spaCy's `en_core_web_sm`** model for entity extraction and comparison:
+
+```python
+def _extract_named_entities(self, text: str) -> list:
+
+def _calculate_ner_overlap(self, original: str, summary: str) -> float:
+```
+
+#### 5.4.2 Enhanced Keywords Component
+
+Intelligent keyword extraction with multilingual support:
+
+```python
+def _calculate_keyword_overlap(self, original: str, summary: str) -> float:
+```
+
+**Key Features:**
+- **Multilingual Processing**: Automatic French/English detection
+- **Smart Preprocessing**: Handles contractions and punctuation
+- **Meaningful Words Only**: Filters 3+ character words, excludes stop words
+- **Precision-Based Scoring**: Focuses on summary word coverage
+
+### 5.5 Final Scoring and Quality Interpretation
+
+The overall score combines all metrics using optimized weights based on extensive testing:
+
+```python
+def _calculate_simple_overall(self, bert_score: float, 
+                             compression_quality: float, word_overlap: float) -> float:
+```
+
+**Quality Interpretation Thresholds:**
+- **0.8-1.0**: Excellent summary (🟢 Green)
+- **0.6-0.8**: Good summary (🟡 Yellow) 
+- **0.4-0.6**: Acceptable summary (🟠 Orange)
+- **0.0-0.4**: Poor summary (🔴 Red)
+
+**Weight Redistribution Rationale:**
+- **BERTScore (50%)**: Most reliable semantic similarity metric
+- **Word Overlap (30%)**: Enhanced with NER provides better content coverage
+- **Compression (20%)**: Important but secondary to content quality
+- **Removed sentence_coherence**: Redundant with BERTScore for semantic flow
+
+### 5.6 Model Dependencies and Performance
+
+The evaluation system requires specific AI models and libraries:
+
+```python
+# Core dependencies for evaluation
+DEPENDENCIES = {
+    'sentence-transformers': 'paraphrase-multilingual-MiniLM-L12-v2',  # ~120MB
+    'spacy': 'en_core_web_sm',                                          # ~15MB  
+    'scikit-learn': 'TfidfVectorizer, cosine_similarity',              # Built-in
+    'numpy': 'Array operations and calculations',                       # Built-in
+}
+```
+
+**Performance Characteristics:**
+- **Evaluation Time**: 0.5-2.0 seconds per summary
+- **Memory Usage**: ~200MB additional for models
+- **GPU Acceleration**: Not required, CPU-optimized
+- **Multilingual Support**: French, English (extensible)
+
+**Fallback Mechanisms:**
+- If spaCy unavailable: Falls back to keywords-only overlap
+- If sentence-transformers unavailable: Uses simple cosine similarity
+- If models fail to load: Provides basic word overlap metrics
+
+### 5.7 Evaluation Reporting and Analytics
+
+Comprehensive evaluation reports include detailed breakdowns:
+
+```python
+@dataclass
+class EvaluationReport:
+    summary_id: str
+    original_text: str
+    generated_summary: str
+    metrics: EvaluationMetrics
+    model_config: Dict[str, Any]
+    
+    # Detailed component scores for analysis
+    def get_detailed_breakdown(self) -> Dict[str, Any]:
+        return {
+            'semantic_analysis': {
+                'bert_score': self.metrics.bert_score,
+                'sentence_model': 'paraphrase-multilingual-MiniLM-L12-v2'
+            },
+            'content_coverage': {
+                'ner_f1_score': self._get_ner_component(),
+                'keyword_overlap': self._get_keyword_component(),
+                'hybrid_weight': '60% NER + 40% Keywords'
+            },
+            'compression_analysis': {
+                'compression_ratio': self.metrics.compression_ratio,
+                'information_density': self._get_density_score()
+            }
+        }
+```
+
+This evaluation framework provides trustworthy, explainable quality assessment that combines the best of traditional NLP techniques with modern transformer-based semantic understanding.
 
 
 

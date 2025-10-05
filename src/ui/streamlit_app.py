@@ -80,8 +80,8 @@ class VideoSummarizerApp:
         st.title("🎥 Video Summarizer")
         st.markdown("""
         **Transform your videos into intelligent summaries** with two model options:
-        - 🎯 **LED* : Maximum quality for extractive summaries (Free & Offline)
-        - ⚡ **OpenAI GPT** : Optimal speed for quick and abstractive summaries
+        - 🎯 **LED** : Free & offline extractive summaries with precise content selection
+        - ⚡ **OpenAI GPT** : Fast abstractive summaries with enhanced coherence evaluation
         
         *Choose your source, configure your preferences and get professional summaries in just a few clicks!*
         """)
@@ -100,7 +100,7 @@ class VideoSummarizerApp:
             openai_available, openai_msg = self.model_manager.is_model_available(ModelType.OPENAI)
             
             if led_available:
-                model_options.append("LED (Quality - Free)")
+                model_options.append("LED (Offline - Free)")
             else:
                 model_options.append("LED (Unavailable)")
                 
@@ -146,16 +146,18 @@ class VideoSummarizerApp:
         with st.sidebar.expander("ℹ️ Model Information"):
             st.markdown("""
             **LED Fine-tuned:**
-          - ✅ Long texts specialist
-            - 🆓 **FREE & Offline**
+            - ✅ Long texts specialist
+            - 🆓 Free & Offline
             - ⏱️ Slower (~30-200s)
             - 🇺🇸 Best for English
+            - 📊 Extractive summaries
             
             **OpenAI GPT:**
             - ✅ Very fast (~5-15s)
             - ✅ Multi-language
             - 💰 Cost per usage
             - 🌐 Requires internet
+            - 🎨 Abstractive summaries
             """)
         
         return {
@@ -367,22 +369,18 @@ class VideoSummarizerApp:
                                 # Display evaluation metrics
                                 st.subheader("🎯 Quality Evaluation")
                                 
-                                col1, col2, col3, col4 = st.columns(4)
+                                col1, col2, col3 = st.columns(3)
                                 with col1:
                                     st.metric("🏆 Overall Score", f"{evaluation_data.overall_score:.3f}")
                                 with col2:
                                     st.metric("🧠 BERTScore", f"{evaluation_data.bert_score:.3f}")
                                 with col3:
-                                    st.metric("📏 ROUGE-L", f"{evaluation_data.rouge_l_adapted:.3f}")
-                                with col4:
-                                    st.metric("�️ Compression", f"{evaluation_data.compression_quality:.3f}")
+                                    st.metric("📏 Compression", f"{evaluation_data.compression_quality:.3f}")
                                 
                                 # Secondary metrics
-                                col1, col2 = st.columns(2)
+                                col1 = st.columns(1)[0]
                                 with col1:
-                                    st.metric("🔗 Coherence", f"{evaluation_data.sentence_coherence:.3f}")
-                                with col2:
-                                    st.metric("🎯 Keywords", f"{evaluation_data.word_overlap_ratio:.3f}")
+                                    st.metric("🎯 Word Overlap (NER+Keywords)", f"{evaluation_data.word_overlap_ratio:.3f}")
                     except Exception as e:
                         st.warning(f"Evaluation unavailable: {e}")
                 
@@ -480,7 +478,7 @@ Summary:
                             with sub_col2:
                                 st.write(f"BERT: {eval_data.get('bert_score', eval_data.get('semantic_similarity', 0)):.3f}")
                             with sub_col3:
-                                st.write(f"ROUGE-L: {eval_data.get('rouge_l_adapted', 0):.3f}")
+                                st.write(f"WordOverlap: {eval_data.get('word_overlap_ratio', 0):.3f}")
                     
                     with col2:
                         st.metric("Model", item['model_type'])
