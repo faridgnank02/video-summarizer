@@ -9,7 +9,7 @@
 
 ## Features
 
--  **LED Fine-tuned Model**: High-quality, free, offline summarization
+-  **LED Model**: High-quality, free, offline summarization
 -  **OpenAI Integration**: Fast, multi-language summaries
 -  **Quality Evaluation**: Automatic quality scoring and metrics  
 -  **System Monitoring**: Real-time performance tracking
@@ -53,7 +53,7 @@ streamlit run src/ui/streamlit_app.py
 
 ## Model Comparison
 
-| Feature | LED Fine-tuned | OpenAI GPT |
+| Feature | LED | OpenAI GPT |
 |---------|----------------|------------|
 | **Cost** | 🆓 Free | 💰 Pay per use |
 | **Internet** | ❌ Offline | ✅ Required |
