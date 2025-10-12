@@ -9,7 +9,11 @@
 
 ## Features
 
+<<<<<<< HEAD
 -  **LED Model**: High-quality, free, offline summarization (up to 16K tokens)
+=======
+-  **LED Model**: High-quality, free, offline summarization
+>>>>>>> c3afae7719c72ab7547134969833f7b8c547e354
 -  **OpenAI Integration**: Fast, multi-language summaries
 -  **Quality Evaluation**: Automatic quality scoring and metrics  
 -  **System Monitoring**: Real-time performance tracking
@@ -226,7 +230,7 @@ python -c "import openai; print(openai.Model.list())"
 
 ## Documentation
 
-- [📖 Quick Start Guide](docs/QUICKSTART.md)
+- [Quick Start Guide](docs/QUICKSTART.md)
 - [Quick Start Guide (English)](docs/QUICKSTART_EN.md)
 - [M1 Optimization Guide](docs/M1_OPTIMIZATION.md)  
 - [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
