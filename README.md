@@ -9,7 +9,7 @@
 
 ## Features
 
--  **LED Fine-tuned Model**: High-quality, free, offline summarization
+-  **LED Model**: High-quality, free, offline summarization (up to 16K tokens)
 -  **OpenAI Integration**: Fast, multi-language summaries
 -  **Quality Evaluation**: Automatic quality scoring and metrics  
 -  **System Monitoring**: Real-time performance tracking
@@ -24,7 +24,7 @@
 git clone https://github.com/faridgnank02/video-summarizer.git
 cd video-summarizer
 
-# Run automated installer
+# Run automated installer (includes spaCy models)
 python scripts/install.py
 
 # Activate environment
@@ -47,13 +47,17 @@ source video-summarizer-env/bin/activate  # Linux/Mac
 # Install dependencies
 pip install -r requirements.txt
 
+# Download spaCy models for evaluation
+python -m spacy download en_core_web_sm
+python -m spacy download fr_core_news_sm
+
 # Launch application
 streamlit run src/ui/streamlit_app.py
 ```
 
 ## Model Comparison
 
-| Feature | LED Fine-tuned | OpenAI GPT |
+| Feature | LED | OpenAI GPT |
 |---------|----------------|------------|
 | **Cost** | 🆓 Free | 💰 Pay per use |
 | **Internet** | ❌ Offline | ✅ Required |
@@ -140,27 +144,31 @@ PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0  # For M1 Macs
 
 ## Quality Metrics
 
-The system automatically evaluates summary quality using multiple metrics:
+The system automatically evaluates summary quality using a **hybrid evaluation framework**:
 
-### Coherence Score (0-1)
-- **Measurement**: Semantic consistency and readability
-- **Method**: spaCy linguistic analysis + sentence transformers
-- **Threshold**: >0.7 = Good, >0.5 = Acceptable, <0.5 = Poor
+### BERTScore (0-1) - Weight: 50%
+- **Measurement**: Semantic similarity via sentence transformers
+- **Method**: `paraphrase-multilingual-MiniLM-L12-v2` model
+- **Threshold**: >0.8 = Excellent, >0.6 = Good, >0.4 = Fair, <0.4 = Poor
 
-### Similarity Score (0-1)  
-- **Measurement**: Semantic similarity to original content
-- **Method**: Sentence-BERT embeddings comparison
-- **Threshold**: >0.6 = High fidelity, >0.4 = Moderate, <0.4 = Low
+### Compression Quality (0-1) - Weight: 20%
+- **Measurement**: Intelligent compression with density analysis
+- **Method**: Adaptive ratios based on text length + information density
+- **Optimal Ratios**: Short texts (30-70%), Medium (10-30%), Long (5-15%)
 
-### ROUGE Scores
-- **ROUGE-1**: Unigram overlap (word-level similarity)
-- **ROUGE-2**: Bigram overlap (phrase-level similarity)  
-- **ROUGE-L**: Longest common subsequence (structure preservation)
+### Hybrid Word Overlap (0-1) - Weight: 30%
+- **Measurement**: Named Entity Recognition + Keywords
+- **Method**: 60% spaCy NER + 40% TF-IDF Keywords
+- **Entities**: PERSON, ORG, GPE, DATE, MONEY, PRODUCT, EVENT, etc.
+- **Fallback**: Keywords-only if spaCy unavailable
+
+### Overall Quality Score
+**Formula**: 0.5 × BERTScore + 0.2 × Compression + 0.3 × WordOverlap
 
 ### Quality Indicators
--  **Excellent** (0.8-1.0): High-quality, coherent summary
--  **Good** (0.6-0.8): Acceptable quality with minor issues
--  **Fair** (0.4-0.6): Usable but may have coherence problems
+-  **Excellent** (0.8-1.0): High-quality, semantically accurate summary
+-  **Good** (0.6-0.8): Good quality with minor issues
+-  **Acceptable** (0.4-0.6): Usable but may need refinement
 -  **Poor** (<0.4): Significant quality issues detected
 
 ##  Advanced Features
@@ -213,14 +221,15 @@ python -c "import openai; print(openai.Model.list())"
 | Slow performance | Enable GPU acceleration or use OpenAI |
 | Poor quality | Check transcript quality score and try other model |
 | Import errors | Reinstall dependencies: `pip install -r requirements.txt` |
+| **spaCy model missing** | `python -m spacy download en_core_web_sm` |
+| **Evaluation errors** | `python -m spacy download fr_core_news_sm` |
 
 ## Documentation
 
 - [📖 Quick Start Guide](docs/QUICKSTART.md)
-- [🚀 M1 Optimization Guide](docs/M1_OPTIMIZATION.md)  
-- [🛠️ LED Improvements](docs/LED_IMPROVEMENTS.md)
-- [📊 API Documentation](docs/API.md)
-- [🚀 Deployment Guide](docs/Deployment.md)
+- [Quick Start Guide (English)](docs/QUICKSTART_EN.md)
+- [M1 Optimization Guide](docs/M1_OPTIMIZATION.md)  
+- [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
 
 ## Contributing
 
@@ -235,14 +244,14 @@ python -c "import openai; print(openai.Model.list())"
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-##  Acknowledgments
+## Acknowledgments
 
 - **Hugging Face**: LED model and transformers library
 - **OpenAI**: GPT models and API
 - **Streamlit**: Beautiful web interface framework
 - **YouTube Transcript API**: Video transcript extraction
 
-##  Project Stats
+## Project Stats
 
 - **Models**: 2 (LED + OpenAI)
 - **Languages**: Multi-language support
