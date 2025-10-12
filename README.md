@@ -9,11 +9,7 @@
 
 ## Features
 
-<<<<<<< HEAD
 -  **LED Model**: High-quality, free, offline summarization (up to 16K tokens)
-=======
--  **LED Model**: High-quality, free, offline summarization
->>>>>>> c3afae7719c72ab7547134969833f7b8c547e354
 -  **OpenAI Integration**: Fast, multi-language summaries
 -  **Quality Evaluation**: Automatic quality scoring and metrics  
 -  **System Monitoring**: Real-time performance tracking
