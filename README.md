@@ -1,7 +1,7 @@
 # AI Video Summarizer
 
 <div align="center">
-  <img src="data/assets/demo-video.gif" alt="Multilingual Text-to-SQL Demo" width="800"/>
+  <img src="data/assets/demo-video.gif" alt="Video Summarizer Demo" width="800"/>
   <p><em>Modern web application for video summarization</em></p>
 </div>
 
