@@ -24,7 +24,7 @@
 git clone https://github.com/faridgnank02/video-summarizer.git
 cd video-summarizer
 
-# Run automated installer (includes spaCy models)
+# Run automated installer
 python scripts/install.py
 
 # Activate environment
