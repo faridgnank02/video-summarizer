@@ -1,15 +1,15 @@
 # Video Summarizer - Technical Overview
 
 **Core Technologies:**
-- **Backend:** Python 3.8+, PyTorch, Transformers (Hugging Face), FastAPI
-- **AI Models:** LED (Longformer Encoder-Decoder), OpenAI GPT-4/3.5-turbo
+- **Backend:** Python 3.8+, PyTorch (optional), Transformers (Hugging Face), FastAPI
+- **AI Models:** Ollama (Qwen3, Gemma3, Mistral), OpenAI GPT-4/3.5-turbo
 - **UI/UX:** Streamlit, HTML/CSS, Plotly (dashboards)
 - **Data:** SQLite, YAML, JSON, pandas
-- **NLP:** spaCy, sentence-transformers, semantic similarity
-- **Infrastructure:** MPS (Apple Silicon), CUDA, Docker-ready
-- **Monitoring:** Real-time metrics, alerting, performance tracking
+- **NLP:** Basic text preprocessing and language detection
+- **Infrastructure:** Cross-platform (macOS, Linux, Windows), Docker-ready
+- **Monitoring:** Real-time metrics, performance tracking, memory management
 
-**Key Concepts:** #NLP #MachineLearning #DeepLearning #REST-API #Microservices #PerformanceOptimization #CacheManagement #Summarization #TransformerModels
+**Key Concepts:** #NLP #MachineLearning #LLM #REST-API #Summarization #LocalModels #Ollama
 
 ## 1. Project Overview
 
@@ -17,7 +17,12 @@
 
 Video Summarizer is an AI system that automatically creates summaries from video content. The system extracts transcripts from various sources and processes them using natural language models to generate clear, concise summaries.
 
-This project tackles the problem of information overload by helping users understand video content without watching entire recordings. It's useful for education, work, and research where time is limited but content understanding is essential.
+In this new version of the project, I decided to explore local large language models (LLMs) as an alternative to cloud-based solutions and the previous LED model. This shift was motivated by several key factors:
+
+- **Performance concerns**: The LED model was slow (30-200s per summary) and memory-intensive (8-16GB RAM)
+- **Local LLM exploration**: Modern local LLMs like Qwen3 and Gemma3 offer excellent quality with minimal resources
+- **Privacy and cost**: 100% local processing means zero API costs and complete data privacy
+- **Flexibility**: Ollama supports multiple models, allowing users to choose based on their needs
 
 ### 1.2 Core Functionality
 
@@ -29,14 +34,15 @@ The system processes multiple input types through a unified pipeline:
 - **Direct Text**: Raw text input for immediate processing
 
 **Dual AI Model Strategy:**
-- **LED Model** (`allenai/led-base-16384`): 
+- **Ollama (Local LLMs)** (`qwen3:1b`, `gemma3:1b`, `mistral:7b`): 
   - ✅ 100% offline, no costs
-  - ✅ Handles up to 16K tokens natively
-  - ✅ Optimized for Apple Silicon (MPS)
-  - ⚠️ English-focused, slower processing
+  - ✅ Fast inference (3-10 seconds)
+  - ✅ Memory efficient (2-4GB RAM)
+  - ✅ Multi-language support
+  - ✅ Privacy-first architecture
 
 - **OpenAI GPT Models** (GPT-4/3.5-turbo):
-  - ✅ Fast processing (2-3 seconds)
+  - ✅ Ultra-fast processing (2-3 seconds)
   - ✅ Excellent multilingual support
   - ✅ High-quality abstractive summaries
   - ⚠️ API costs, internet required
@@ -144,24 +150,35 @@ Performance improvements include streaming for large files, parallel processing 
 
 ## 3. AI Models and Implementation
 
-### 3.1 LED Model Architecture
+### 3.1 Ollama Integration (New in This Version)
 
-The LED (Longformer Encoder-Decoder) model is the core of the offline summarization system. It's built on transformer architecture but modified to handle very long documents - up to 16,384 tokens compared to typical models that max out around 512 tokens.
+In this new version of the project, Ollama has replaced the LED model as the primary local inference engine. This decision was driven by the need for faster, more memory-efficient local LLM processing.
+
+**Why Ollama Instead of LED:**
+- **Speed**: 3-10s vs 30-200s with LED
+- **Memory**: 2-4GB vs 8-16GB with LED  
+- **Flexibility**: Multiple models available (Qwen3, Gemma3, Mistral, Llama)
+- **Modern Architecture**: Built for instruction-following and chat-based interactions
+- **Active Development**: Regular updates and new model releases
 
 ```python
-class LEDSummarizer:
-    def __init__(self, model_name, device)
-    def _get_device(self, device)
-    def summarize(self, text, summary_type)
+class OllamaSummarizer:
+    def __init__(self, base_url, model_name, config_path)
+    def summarize(self, text, summary_type, language, max_retries)
+    def _build_prompt(self, text, summary_type, language)
+    def _clean_summary_response(self, summary, language)
 ```
 
-The model uses attention patterns that scale efficiently with document length. Instead of computing attention between every token pair (which would be expensive), it uses a sliding window approach combined with global attention on key tokens.
+The Ollama integration uses carefully crafted prompts with explicit constraints to ensure high-quality summaries. The system supports both short (2-3 sentences) and long (5-8 sentences) summaries with dynamic token allocation.
 
-For Apple Silicon chips (M1, M2, M3), the system uses Metal Performance Shaders (MPS) which can make processing 1.5x faster than CPU while using less memory and generating less heat.
+**Recommended Models:**
+- **qwen3:1b**: Best balance of speed and quality, optimized for instructions
+- **gemma3:1b**: Excellent for multilingual content, very fast
+- **mistral:7b**: Higher quality, but slower and more memory-intensive
 
 ### 3.2 OpenAI Integration
 
-The OpenAI integration provides fast, high-quality summaries through GPT-4 and GPT-3.5-turbo models. The system uses carefully crafted prompts that adapt based on the desired summary length and language.
+The OpenAI integration remains unchanged, providing fast, high-quality summaries through GPT-4 and GPT-3.5-turbo models. The system uses carefully crafted prompts that adapt based on the desired summary length and language.
 
 ```python
 class OpenAISummarizer:
@@ -174,7 +191,7 @@ The system tracks API usage including token consumption and costs. It also imple
 
 ### 3.3 Model Selection Logic
 
-The model manager automatically chooses the best model based on several factors. For long English texts, LED often works better. For multilingual content or when speed is critical, OpenAI models are preferred.
+The model manager automatically chooses the best model based on availability and user preference. The fallback strategy is: Ollama → OpenAI → RuntimeError.
 
 ```python
 class ModelManager:
@@ -183,21 +200,33 @@ class ModelManager:
     def generate_summary(self, request)
 ```
 
-The system also checks model availability in real-time. If the LED model fails to load (insufficient memory, missing dependencies), it automatically switches to OpenAI. If OpenAI is unavailable (no API key, network issues), it falls back to LED.
+The system checks model availability in real-time. If Ollama server is not running, it automatically switches to OpenAI (if API key is configured).
 
 ### 3.4 Generation Parameters and Quality Control
 
-Both models use carefully tuned generation parameters to ensure quality output. The LED model uses beam search with specific penalties to avoid repetition and encourage conciseness.
+Both models use carefully tuned generation parameters to ensure quality output. The Ollama integration uses structured prompts with explicit "Contraintes strictes" (strict constraints) sections to guide the model.
 
 ```python
-# LED generation configuration
-generation_config = {
-    'num_beams': 4, 'length_penalty': 2.0, 'repetition_penalty': 1.3,
-    'no_repeat_ngram_size': 4, 'early_stopping': True
+# Ollama generation configuration
+prompts = {
+    'short_french': """Tu dois produire un résumé court en français...
+    Contraintes strictes:
+    - 2 à 3 phrases maximum
+    - Commence directement par le sujet principal
+    - Pas de formules comme "Ce texte parle de", "Voici un résumé", etc.
+    """,
+    'long_french': """Tu dois produire un résumé détaillé en français...
+    Contraintes strictes:
+    - 5 à 8 phrases complètes
+    - Couvre tous les points importants du texte
+    """
 }
+
+# Dynamic token allocation
+num_predict = 300 if summary_type == "short" else 800
 ```
 
-The system includes quality validation for generated summaries. It checks for coherence, proper sentence structure, and meaningful content. Low-quality outputs trigger regeneration with different parameters or fallback to the alternative model.
+The system includes post-processing cleanup with 15+ regex patterns to remove common intro phrases like "Here's a summary", "Voici un résumé", etc.
 
 
 ## 4. System Architecture and Components
@@ -276,177 +305,17 @@ Configuration changes are detected automatically and applied without requiring s
 
 ## 5. Evaluation and Quality Assurance
 
-### 5.1 Hybrid Evaluation Framework
+### 5.1 Simplified Evaluation Approach
 
-The system implements an advanced hybrid evaluation framework that combines multiple AI models and NLP techniques to provide comprehensive summary quality assessment. The evaluation uses three core metrics powered by state-of-the-art models:
+**Note:** In this new version of the project, the comprehensive quality evaluation system has been removed from the user interface to provide a cleaner, faster experience. The evaluation framework (BERTScore, compression quality, hybrid word overlap) is still available in the codebase for development and testing purposes, but is no longer displayed to end users.
 
-```python
-@dataclass
-class EvaluationMetrics:
-    bert_score: float              # Semantic similarity via sentence-transformers
-    compression_quality: float     # Intelligent compression with density analysis
-    word_overlap_ratio: float      # Hybrid NER + Keywords overlap (60% NER + 40% Keywords)
-    
-    # Technical metadata
-    processing_time: float         # Evaluation processing time
-    model_used: str               # Model used for summary generation
-    timestamp: str                # Evaluation timestamp
-    overall_score: float          # Weighted combination (50% BERT + 20% Compression + 30% WordOverlap)
-```
+This decision was made to:
+- **Reduce complexity**: Focus on summary generation rather than evaluation
+- **Improve performance**: Eliminate evaluation overhead (0.5-2s per summary)
+- **Simplify UX**: Users get their summaries faster without technical metrics
+- **Lower resource usage**: No need to load sentence-transformers and spaCy models (~200MB)
 
-The evaluation leverages multiple AI models:
-- **sentence-transformers** (`paraphrase-multilingual-MiniLM-L12-v2`) for semantic similarity
-- **spaCy** (`en_core_web_sm`) for Named Entity Recognition
-- **scikit-learn** TF-IDF vectorization for keyword importance
-- **Custom multilingual processing** for French/English content
-
-### 5.2 Semantic Similarity with Sentence Transformers
-
-The system uses **sentence-transformers** library with the `paraphrase-multilingual-MiniLM-L12-v2` model to compute contextual semantic similarity. This approach captures meaning beyond simple word overlap:
-
-```python
-class SummaryEvaluator:
-    def __init__(self, load_models: bool = True):
-        self.sentence_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-        
-    def _calculate_bert_score(self, original: str, summary: str) -> float:
-```
-
-**Key Features:**
-- **Multilingual Support**: Works with French, English, and other languages
-- **Sentence-Level Analysis**: Compares semantic meaning at sentence level
-- **Contextual Understanding**: Captures paraphrasing and semantic equivalence
-- **Score Range**: 0.0-1.0 (0.6+ = good, 0.8+ = excellent)
-
-### 5.3 Intelligent Compression Quality Assessment
-
-The compression quality metric evaluates both the compression ratio and information density to ensure optimal summarization effectiveness:
-
-```python
-def _calculate_compression_quality(self, original: str, summary: str) -> float:
-```
-
-**Adaptive Compression Targets:**
-- **Short texts (<200 words)**: 30-70% retention optimal
-- **Medium texts (200-1000 words)**: 10-30% retention optimal  
-- **Long texts (>1000 words)**: 5-15% retention optimal
-
-**Information Density Calculation:**
-- Filters out stop words in multiple languages (French/English)
-- Rewards high concentration of meaningful content
-- Penalizes summaries with excessive filler words
-
-### 5.4 Hybrid Word Overlap: NER + Keywords Integration
-
-The most innovative aspect of the evaluation framework is the hybrid word overlap metric that combines Named Entity Recognition with keyword analysis:
-
-```python
-def _calculate_word_overlap(self, original: str, summary: str) -> float:
-```
-
-#### 5.4.1 Named Entity Recognition Component
-
-Uses **spaCy's `en_core_web_sm`** model for entity extraction and comparison:
-
-```python
-def _extract_named_entities(self, text: str) -> list:
-
-def _calculate_ner_overlap(self, original: str, summary: str) -> float:
-```
-
-#### 5.4.2 Enhanced Keywords Component
-
-Intelligent keyword extraction with multilingual support:
-
-```python
-def _calculate_keyword_overlap(self, original: str, summary: str) -> float:
-```
-
-**Key Features:**
-- **Multilingual Processing**: Automatic French/English detection
-- **Smart Preprocessing**: Handles contractions and punctuation
-- **Meaningful Words Only**: Filters 3+ character words, excludes stop words
-- **Precision-Based Scoring**: Focuses on summary word coverage
-
-### 5.5 Final Scoring and Quality Interpretation
-
-The overall score combines all metrics using optimized weights based on extensive testing:
-
-```python
-def _calculate_simple_overall(self, bert_score: float, 
-                             compression_quality: float, word_overlap: float) -> float:
-```
-
-**Quality Interpretation Thresholds:**
-- **0.8-1.0**: Excellent summary (🟢 Green)
-- **0.6-0.8**: Good summary (🟡 Yellow) 
-- **0.4-0.6**: Acceptable summary (🟠 Orange)
-- **0.0-0.4**: Poor summary (🔴 Red)
-
-**Weight Redistribution Rationale:**
-- **BERTScore (50%)**: Most reliable semantic similarity metric
-- **Word Overlap (30%)**: Enhanced with NER provides better content coverage
-- **Compression (20%)**: Important but secondary to content quality
-- **Removed sentence_coherence**: Redundant with BERTScore for semantic flow
-
-### 5.6 Model Dependencies and Performance
-
-The evaluation system requires specific AI models and libraries:
-
-```python
-# Core dependencies for evaluation
-DEPENDENCIES = {
-    'sentence-transformers': 'paraphrase-multilingual-MiniLM-L12-v2',  # ~120MB
-    'spacy': 'en_core_web_sm',                                          # ~15MB  
-    'scikit-learn': 'TfidfVectorizer, cosine_similarity',              # Built-in
-    'numpy': 'Array operations and calculations',                       # Built-in
-}
-```
-
-**Performance Characteristics:**
-- **Evaluation Time**: 0.5-2.0 seconds per summary
-- **Memory Usage**: ~200MB additional for models
-- **GPU Acceleration**: Not required, CPU-optimized
-- **Multilingual Support**: French, English (extensible)
-
-**Fallback Mechanisms:**
-- If spaCy unavailable: Falls back to keywords-only overlap
-- If sentence-transformers unavailable: Uses simple cosine similarity
-- If models fail to load: Provides basic word overlap metrics
-
-### 5.7 Evaluation Reporting and Analytics
-
-Comprehensive evaluation reports include detailed breakdowns:
-
-```python
-@dataclass
-class EvaluationReport:
-    summary_id: str
-    original_text: str
-    generated_summary: str
-    metrics: EvaluationMetrics
-    model_config: Dict[str, Any]
-    
-    # Detailed component scores for analysis
-    def get_detailed_breakdown(self) -> Dict[str, Any]:
-        return {
-            'semantic_analysis': {
-                'bert_score': self.metrics.bert_score,
-                'sentence_model': 'paraphrase-multilingual-MiniLM-L12-v2'
-            },
-            'content_coverage': {
-                'ner_f1_score': self._get_ner_component(),
-                'keyword_overlap': self._get_keyword_component(),
-                'hybrid_weight': '60% NER + 40% Keywords'
-            },
-            'compression_analysis': {
-                'compression_ratio': self.metrics.compression_ratio,
-                'information_density': self._get_density_score()
-            }
-        }
-```
-
-This evaluation framework provides trustworthy, explainable quality assessment that combines the best of traditional NLP techniques with modern transformer-based semantic understanding.
+The system still tracks basic metrics like processing time, word count, and compression ratio for monitoring purposes.
 
 
 

@@ -8,6 +8,8 @@ import os
 import sys
 import logging
 import time
+import requests
+import gc
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -19,7 +21,6 @@ try:
     from data.preprocessing import TextPreprocessor
     from models.model_manager import ModelManager, ModelType, SummaryLength
     from monitoring.metrics import MetricsCollector
-    from evaluation.evaluator import SummaryEvaluator
 except ImportError as e:
     st.error(f"Module import error: {e}")
     st.info("Make sure all dependencies are installed")
@@ -44,16 +45,13 @@ class VideoSummarizerApp:
     def __init__(self):
         self.ingestion = DataIngestion()
         self.preprocessor = TextPreprocessor()
-        self.model_manager = None
         
-        # Initialize monitoring and evaluation
+        # Initialize monitoring
         try:
             self.metrics_collector = MetricsCollector()
-            self.evaluator = SummaryEvaluator(load_models=False)  # Lazy loading
         except Exception as e:
-            st.warning(f"Monitoring/Evaluation unavailable: {e}")
+            st.warning(f"Monitoring unavailable: {e}")
             self.metrics_collector = None
-            self.evaluator = None
         
         # Application state
         if 'summary_history' not in st.session_state:
@@ -62,29 +60,109 @@ class VideoSummarizerApp:
         if 'current_video_data' not in st.session_state:
             st.session_state.current_video_data = None
     
+    @property
+    def model_manager(self):
+        """Get cached model manager from session state"""
+        if 'model_manager' not in st.session_state:
+            st.session_state.model_manager = None
+        return st.session_state.model_manager
+    
+    @model_manager.setter
+    def model_manager(self, value):
+        """Set model manager in session state"""
+        st.session_state.model_manager = value
+    
     def initialize_models(self):
-        """Initialize model manager (lazy loading)"""
+        """Initialize model manager (cached in session state)"""
         if self.model_manager is None:
             with st.spinner("🔄 Initializing models..."):
                 try:
                     config_path = Path(__file__).parent.parent.parent / "config" / "model_config.yaml"
                     self.model_manager = ModelManager(str(config_path) if config_path.exists() else None)
+                    logger.info("✅ ModelManager cached in session state")
                     st.success("✅ Models initialized successfully!")
                 except Exception as e:
                     st.error(f"❌ Error initializing models: {e}")
+                    logger.error(f"Model initialization failed: {e}")
                     return False
         return True
+    
+    def cleanup_unused_models(self, active_model: str):
+        """
+        Free memory from unused models
+        
+        Args:
+            active_model: The model currently being used ('led', 'openai', 'ollama')
+        """
+        if self.model_manager is None:
+            return
+        
+        try:
+            # Unload Ollama model if not in use
+            if active_model != 'ollama' and self.model_manager._ollama_model:
+                logger.info("🧹 Unloading Ollama model to free memory")
+                self._unload_ollama_model()
+                self.model_manager._ollama_model = None
+            
+            # LED support removed in this distribution; nothing to unload for LED
+                
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+        except Exception as e:
+            logger.warning(f"Cleanup warning: {e}")
+    
+    def _unload_ollama_model(self):
+        """Request Ollama to unload the current model from memory"""
+        try:
+            if self.model_manager._ollama_model and self.model_manager._ollama_model is not False:
+                model_name = self.model_manager._ollama_model.model_name
+                base_url = self.model_manager._ollama_model.base_url
+                
+                # Send keep_alive=0 to unload model
+                response = requests.post(
+                    f"{base_url}/api/generate",
+                    json={
+                        "model": model_name,
+                        "keep_alive": 0  # Immediately unload
+                    },
+                    timeout=5
+                )
+                logger.info(f"✅ Ollama model {model_name} unloaded")
+        except Exception as e:
+            logger.warning(f"Could not unload Ollama model: {e}")
+    
+    def _clear_all_models(self):
+        """Clear all loaded models from memory"""
+        if self.model_manager is None:
+            return
+        
+        try:
+            # Unload Ollama
+            self._unload_ollama_model()
+            
+            # Clear model references
+            self.model_manager._ollama_model = None
+            self.model_manager._openai_model = None
+            
+            # Force garbage collection
+            gc.collect()
+            
+            logger.info("🧹 All models cleared from memory")
+        except Exception as e:
+            logger.warning(f"Error clearing models: {e}")
     
     def render_header(self):
         """Display main header"""
         st.title("🎥 Video Summarizer")
-        st.markdown("""
-        **Transform your videos into intelligent summaries** with two model options:
-        - 🎯 **LED** : Free & offline extractive summaries with precise content selection
-        - ⚡ **OpenAI GPT** : Fast abstractive summaries with enhanced coherence evaluation
+    st.markdown("""
+    **Transform your videos into intelligent summaries** with two model options:
+    - 🆕 **Ollama** : Local LLM (Gemma3, Qwen) - Fast, free, offline
+    - ⚡ **OpenAI GPT** : Fast abstractive summaries with enhanced coherence evaluation
         
-        *Choose your source, configure your preferences and get professional summaries in just a few clicks!*
-        """)
+    *Choose your source, configure your preferences and get professional summaries in just a few clicks!*
+    """)
     
     def render_sidebar(self):
         """Display sidebar with settings"""
@@ -96,20 +174,20 @@ class VideoSummarizerApp:
         # Check model availability
         if self.model_manager:
             from models.model_manager import ModelType
-            led_available, led_msg = self.model_manager.is_model_available(ModelType.LED)
             openai_available, openai_msg = self.model_manager.is_model_available(ModelType.OPENAI)
+            ollama_available, ollama_msg = self.model_manager.is_model_available(ModelType.OLLAMA)
             
-            if led_available:
-                model_options.append("LED (Offline - Free)")
+            if ollama_available:
+                model_options.append("Ollama (Local - Free)")
             else:
-                model_options.append("LED (Unavailable)")
+                model_options.append("Ollama (Unavailable)")
                 
             if openai_available:
                 model_options.append("OpenAI (Speed)")
             else:
                 model_options.append("OpenAI (Unavailable)")
         else:
-            model_options.extend(["LED (Quality - Free)", "OpenAI (Speed)"])
+            model_options.extend(["Ollama (Local - Free)", "OpenAI (Speed)"])
         
         model_option = st.sidebar.selectbox(
             "🤖 Summary Model",
@@ -131,6 +209,27 @@ class VideoSummarizerApp:
             help="Language of the generated summary"
         )
         
+        # Memory Management Section
+        with st.sidebar.expander("🧹 Memory Management"):
+            st.markdown("""
+            **Clear model cache to free RAM/GPU memory**
+            
+            Use this if the app becomes slow or crashes.
+            """)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🗑️ Clear All", key="clear_all"):
+                    self._clear_all_models()
+                    st.success("✅ All models cleared")
+            
+            with col2:
+                if st.button("🔄 Unload Ollama", key="unload_ollama"):
+                    self._unload_ollama_model()
+                    st.success("✅ Ollama unloaded")
+            
+            st.caption("💡 Models will reload automatically when needed")
+        
         # System monitoring
         if self.metrics_collector:
             with st.sidebar.expander("📊 System Monitoring"):
@@ -145,12 +244,13 @@ class VideoSummarizerApp:
         # Model information
         with st.sidebar.expander("ℹ️ Model Information"):
             st.markdown("""
-            **LED Fine-tuned:**
-            - ✅ Long texts specialist
-            - 🆓 Free & Offline
-            - ⏱️ Slower (~30-200s)
-            - 🇺🇸 Best for English
-            - 📊 Extractive summaries
+            **Ollama (Local LLM):**
+            - ⚡ Very fast (~3-6s)
+            - 🆓 100% Free
+            - 🏠 Offline & Private
+            - 🌍 Multi-language
+            - 🎨 Abstractive summaries
+            - 💾 Low RAM (2GB)
             
             **OpenAI GPT:**
             - ✅ Very fast (~5-15s)
@@ -262,17 +362,6 @@ class VideoSummarizerApp:
             else:
                 st.metric("📄 Source", video_data.source)
         
-        # Quality warning if necessary
-        if video_data.metadata and 'quality_warning' in video_data.metadata:
-            st.warning(f"⚠️ {video_data.metadata['quality_warning']}")
-            st.info("💡 **Tip**: Try using the OpenAI model for better summaries with this type of content.")
-        elif video_data.metadata and 'quality_score' in video_data.metadata:
-            quality_score = video_data.metadata['quality_score']
-            if quality_score >= 0.7:
-                st.success(f"✅ High quality transcript (score: {quality_score:.2f})")
-            elif quality_score >= 0.5:
-                st.info(f"ℹ️ Medium quality transcript (score: {quality_score:.2f})")
-        
         # Transcript preview
         with st.expander("👁️ Preview Transcript"):
             preview_length = min(500, len(video_data.transcript))
@@ -292,8 +381,8 @@ class VideoSummarizerApp:
         
         # Configure parameters
         model_type = "auto"
-        if "LED" in params['model'] and "Unavailable" not in params['model']:
-            model_type = "led"
+        if "Ollama" in params['model'] and "Unavailable" not in params['model']:
+            model_type = "ollama"
         elif "OpenAI" in params['model'] and "Unavailable" not in params['model']:
             model_type = "openai"
         # If unavailable model selected, use auto
@@ -317,6 +406,9 @@ class VideoSummarizerApp:
                 start_time = time.time()
                 
                 with st.spinner("🔄 Generating summary..."):
+                    # Cleanup unused models BEFORE generation
+                    self.cleanup_unused_models(model_type)
+                    
                     # Preprocessing
                     processed_data = self.preprocessor.preprocess(video_data.transcript)
                     
@@ -348,42 +440,6 @@ class VideoSummarizerApp:
                 st.markdown(f"**{video_data.title}**")
                 st.write(summary)
                 
-                # Automatic summary evaluation
-                evaluation_data = None
-                if self.evaluator:
-                    try:
-                        with st.spinner("🎯 Evaluating quality..."):
-                            # Load evaluation models if necessary
-                            if not hasattr(self.evaluator, 'sentence_model') or self.evaluator.sentence_model is None:
-                                self.evaluator._load_models()
-                            
-                            evaluation = self.evaluator.evaluate_summary(
-                                original_text=processed_data.text,
-                                generated_summary=summary,
-                                model_name=model_type
-                            )
-                            
-                            if evaluation and hasattr(evaluation, 'metrics'):
-                                evaluation_data = evaluation.metrics
-                                
-                                # Display evaluation metrics
-                                st.subheader("🎯 Quality Evaluation")
-                                
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    st.metric("🏆 Overall Score", f"{evaluation_data.overall_score:.3f}")
-                                with col2:
-                                    st.metric("🧠 BERTScore", f"{evaluation_data.bert_score:.3f}")
-                                with col3:
-                                    st.metric("📏 Compression", f"{evaluation_data.compression_quality:.3f}")
-                                
-                                # Secondary metrics
-                                col1 = st.columns(1)[0]
-                                with col1:
-                                    st.metric("🎯 Word Overlap (NER+Keywords)", f"{evaluation_data.word_overlap_ratio:.3f}")
-                    except Exception as e:
-                        st.warning(f"Evaluation unavailable: {e}")
-                
                 # Save to history
                 summary_data = {
                     'title': video_data.title,
@@ -391,8 +447,7 @@ class VideoSummarizerApp:
                     'model_type': model_type,
                     'length': summary_length,
                     'processing_time': processing_time,
-                    'timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
-                    'evaluation': evaluation_data.__dict__ if evaluation_data else None
+                    'timestamp': time.strftime("%Y-%m-%d %H:%M:%S")
                 }
                 st.session_state.summary_history.append(summary_data)
                 
@@ -449,36 +504,11 @@ Summary:
             st.header("📚 Summary History")
             
             for i, item in enumerate(reversed(st.session_state.summary_history)):
-                # Icône selon la qualité (si évaluation disponible)
-                quality_icon = "📄"
-                if item.get('evaluation'):
-                    score = item['evaluation'].get('overall_score', 0)
-                    if score >= 0.8:
-                        quality_icon = "🏆"
-                    elif score >= 0.6:
-                        quality_icon = "✅"
-                    elif score >= 0.4:
-                        quality_icon = "🟡"
-                    else:
-                        quality_icon = "🔴"
-                
-                with st.expander(f"{quality_icon} {item['title']} - {item['timestamp']}"):
+                with st.expander(f"📄 {item['title']} - {item['timestamp']}"):
                     col1, col2 = st.columns([3, 1])
                     
                     with col1:
                         st.write(item['summary'])
-                        
-                        # Display evaluation if available
-                        if item.get('evaluation'):
-                            eval_data = item['evaluation']
-                            st.markdown("**📊 Quality:**")
-                            sub_col1, sub_col2, sub_col3 = st.columns(3)
-                            with sub_col1:
-                                st.write(f"Score: {eval_data.get('overall_score', 0):.3f}")
-                            with sub_col2:
-                                st.write(f"BERT: {eval_data.get('bert_score', eval_data.get('semantic_similarity', 0)):.3f}")
-                            with sub_col3:
-                                st.write(f"WordOverlap: {eval_data.get('word_overlap_ratio', 0):.3f}")
                     
                     with col2:
                         st.metric("Model", item['model_type'])
@@ -504,7 +534,7 @@ Summary:
                     st.metric("📊 Total Requests", stats.get('total_requests', 0))
                 
                 with col2:
-                    st.metric("🎯 LED", stats.get('led_requests', 0))
+                    st.metric("🆕 Ollama", stats.get('ollama_requests', 0))
                 
                 with col3:
                     st.metric("⚡ OpenAI", stats.get('openai_requests', 0))
@@ -517,11 +547,14 @@ Summary:
                 if stats.get('total_requests', 0) > 0:
                     import matplotlib.pyplot as plt
                     
-                    fig, ax = plt.subplots(figsize=(8, 4))
-                    models = ['LED', 'OpenAI']
-                    requests = [stats.get('led_requests', 0), stats.get('openai_requests', 0)]
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    models = ['Ollama', 'OpenAI']
+                    requests = [
+                        stats.get('ollama_requests', 0),
+                        stats.get('openai_requests', 0)
+                    ]
                     
-                    ax.bar(models, requests, color=['#1f77b4', '#ff7f0e'])
+                    ax.bar(models, requests, color=['#2ecc71', '#ff7f0e'])
                     ax.set_ylabel('Number of requests')
                     ax.set_title('Model usage')
                     

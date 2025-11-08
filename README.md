@@ -5,16 +5,29 @@
   <p><em>Modern web application for video summarization</em></p>
 </div>
 
-**Transform your videos into intelligent summaries** with advanced AI models and comprehensive evaluation metrics.
+**Transform your videos into intelligent summaries** with local AI models and fast cloud processing.
+
+## ✨ What's New in This Version
+
+In this new version of the project, I decided to **completely replace the LED model with Ollama's local LLMs** (particularly Qwen3). This decision was driven by several key factors:
+
+-  **Performance**: The LED model was significantly slow (30-200s per summary) and consumed excessive memory (8-16GB RAM)
+- **Local LLM Exploration**: I wanted to explore the capabilities of modern local large language models as a free, private alternative
+- **Speed Improvement**: Ollama with Qwen3/Gemma models provides much faster inference (3-10s) while maintaining quality
+- **Memory Efficiency**: Reduced memory footprint from 8-16GB to 2-4GB with Ollama models
+- **Simplicity**: Streamlined architecture focusing on two excellent options: local (Ollama) and cloud (OpenAI)
+
+The evaluation system has also been simplified, removing automatic quality scoring to provide a cleaner, faster user experience.
 
 ## Features
 
--  **LED Model**: High-quality, free, offline summarization (up to 16K tokens)
--  **OpenAI Integration**: Fast, multi-language summaries
--  **Quality Evaluation**: Automatic quality scoring and metrics  
--  **System Monitoring**: Real-time performance tracking
+-  **Dual AI Model Strategy**: 
+   - 🆕 **Ollama (Local LLMs)**: Qwen3, Gemma3, Mistral - Fast, free, offline, private
+   - ⚡ **OpenAI Integration**: GPT-4/3.5-turbo for maximum speed and quality
+-  **System Monitoring**: Real-time performance and memory tracking
 -  **Multi-source Input**: YouTube, local files, direct text
--  **Modern Interface**: Beautiful Streamlit web app
+-  **Modern Interface**: Clean Streamlit web app
+-  **Memory Management**: Smart model loading and cache clearing
 
 ## Quick Start
 
@@ -55,43 +68,71 @@ python -m spacy download fr_core_news_sm
 streamlit run src/ui/streamlit_app.py
 ```
 
-## Model Comparison
+## Models Comparison
 
-| Feature | LED | OpenAI GPT |
-|---------|----------------|------------|
-| **Cost** | 🆓 Free | 💰 Pay per use |
+| Feature | **Ollama (Qwen3/Gemma)** 🆕 | **OpenAI** |
+|---------|---------------------------|-----------|
+| **Cost** | 🆓 Free | 💰 Pay-per-use |
 | **Internet** | ❌ Offline | ✅ Required |
-| **Speed** | ⏱️ 5-10s | ⚡ 2-3s |
+| **Speed** | ⚡ 3-10s | ⚡⚡ 2-5s |
 | **Quality** | 🌟🌟🌟🌟 | 🌟🌟🌟🌟🌟 |
-| **Languages** | 🇺🇸 English (best) | 🌍 Multi-language |
-| **Long texts** | ✅ Specialized | ✅ Good |
-| **Style** | 📝 Extractive | 🎨 Abstractive |
+| **Languages** | 🌍 Multi-language |  Multi-language |
+| **Long texts** | ✅ Excellent (8K+) | ✅ Excellent |
+| **Setup** | 🔧 Easy | 🎯 Instant |
+| **RAM** | 2-4GB | N/A |
+| **Privacy** | 🔒 100% Local | ☁️ Cloud-based |
 
-###  **LED Advantages**
-- **100% Free**: No usage costs or API keys required
-- **Privacy**: All processing happens locally
-- **Offline**: Works without internet connection
-- **GPU Accelerated**: Optimized for Apple M1/M2/M3 chips
-- **Long Documents**: Handles up to 16K tokens natively
+### **Ollama Advantages**
+- **Multiple Models**: Choose from Qwen3, Gemma3, Mistral, Llama, GPT-OSS
+- **CPU Optimized**: No GPU required, runs on any Mac/Linux/Windows
+- **Fast Inference**: 3-10s per summary
+- **100% Free**: No API costs, no usage limits
+- **Privacy First**: All processing happens locally on your machine
+- **Easy Setup**: `ollama pull qwen3:1b` and you're ready
+- **Memory Efficient**: Only 2-4GB RAM (vs 8-16GB for LED)
 
 ### **OpenAI Advantages**
-- **Speed**: 3-5x faster than LED
+- **Speed**: Fastest option (2-5s)
 - **Languages**: Excellent multi-language support
-- **Style**: More natural, abstractive summaries
+- **Style**: Most natural, abstractive summaries
 - **Consistency**: Reliable quality across content types
+- **No Local Resources**: Zero memory/CPU usage on your machine
+
+### 📖 **Quick Start with Ollama**
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start server
+ollama serve
+
+# Download recommended model
+ollama pull gemma3:1b  # Fast and efficient (or gemma3:1b)
+
+# Test integration
+python -c "from src.models.ollama_model import OllamaSummarizer; print('✅ Ollama ready!')"
+```
+
+**Why Qwen3/Gemma3?**
+- Optimized for instruction following
+- Better summary quality than larger models
+- Extremely fast (3-10s vs 30-200s with LED)
+- Minimal memory usage (2-4GB vs 8-16GB with LED)
 
 ## System Requirements
 
 ### Minimum
 - Python 3.8+
-- 8GB RAM
+- 4GB RAM
 - 2GB disk space
+- Internet connection (for OpenAI or Ollama model download)
 
-### Recommended (for LED model)
-- Python 3.12
-- 16GB RAM
-- Apple M1/M2/M3 (GPU acceleration)
-- 4GB disk space
+### Recommended (for Ollama)
+- Python 3.10+
+- 8GB RAM
+- 5GB disk space (for Ollama models)
+- Any CPU (Apple Silicon, Intel, AMD)
 
 ## Usage
 
@@ -121,143 +162,90 @@ streamlit run src/ui/streamlit_app.py
 ## Configuration
 
 ### Model Settings (`config/model_config.yaml`)
+
 ```yaml
 models:
-  led:
-    device: auto          # auto, mps, cuda, cpu
-    model_name: allenai/led-base-16384
-    generation_config:
-      num_beams: 4
-      length_penalty: 2.0
-      max_length: 512
+  ollama:
+    model_name: gemma3:1b      # Or qwen, gpt-oss, deepseek-r1...
+    base_url: http://localhost:11434
+    temperature: 0.3
+    max_tokens: 800
   
   openai:
     model_name: gpt-4
     fallback_model: gpt-3.5-turbo
+    temperature: 0.7
+    max_tokens: 500
 ```
 
 ### Application Settings (`.env`)
+
 ```bash
 OPENAI_API_KEY=your-openai-api-key
-PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0  # For M1 Macs
+OLLAMA_BASE_URL=http://localhost:11434  # Optional, default value
 ```
 
-## Quality Metrics
+## Usage Notes
 
-The system automatically evaluates summary quality using a **hybrid evaluation framework**:
+**In this new version**, the quality evaluation metrics have been removed from the UI to provide a cleaner, faster experience. The focus is now on generating high-quality summaries quickly using either local Ollama models or OpenAI's API.
 
-### BERTScore (0-1) - Weight: 50%
-- **Measurement**: Semantic similarity via sentence transformers
-- **Method**: `paraphrase-multilingual-MiniLM-L12-v2` model
-- **Threshold**: >0.8 = Excellent, >0.6 = Good, >0.4 = Fair, <0.4 = Poor
-
-### Compression Quality (0-1) - Weight: 20%
-- **Measurement**: Intelligent compression with density analysis
-- **Method**: Adaptive ratios based on text length + information density
-- **Optimal Ratios**: Short texts (30-70%), Medium (10-30%), Long (5-15%)
-
-### Hybrid Word Overlap (0-1) - Weight: 30%
-- **Measurement**: Named Entity Recognition + Keywords
-- **Method**: 60% spaCy NER + 40% TF-IDF Keywords
-- **Entities**: PERSON, ORG, GPE, DATE, MONEY, PRODUCT, EVENT, etc.
-- **Fallback**: Keywords-only if spaCy unavailable
-
-### Overall Quality Score
-**Formula**: 0.5 × BERTScore + 0.2 × Compression + 0.3 × WordOverlap
-
-### Quality Indicators
--  **Excellent** (0.8-1.0): High-quality, semantically accurate summary
--  **Good** (0.6-0.8): Good quality with minor issues
--  **Acceptable** (0.4-0.6): Usable but may need refinement
--  **Poor** (<0.4): Significant quality issues detected
-
-##  Advanced Features
-
-### GPU Acceleration (Apple Silicon)
-The LED model automatically uses your M1/M2/M3 GPU via Metal Performance Shaders:
-- **1.5x faster** than CPU processing
-- **Lower power consumption**
-- **Better thermal management**
-
-### Quality Assessment
-- Automatic transcript quality detection
-- User warnings for low-quality content  
-- Model recommendations based on content type
-- Fallback strategies for problematic texts
-
-### System Monitoring
-- Real-time CPU, memory, and disk usage
-- Processing time tracking
-- Model performance metrics
-- Usage statistics
+The LED model is no longer included because:
+- It was slow (30-200s per summary)
+- It consumed too much memory (8-16GB RAM)
+- Ollama provides better performance with modern LLMs (3-10s, 2-4GB RAM)
+- Local LLM exploration offers more flexibility and future-proofing
 
 ## Troubleshooting
 
-### LED Model Issues
+### Ollama Issues
+
 ```bash
-# Check GPU availability (Mac)
-python -c "import torch; print(torch.backends.mps.is_available())"
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
 
-# Force CPU mode
-# Edit config/model_config.yaml: device: cpu
+# Start Ollama server
+ollama serve
 
-# Check model loading
-python -c "from src.models.led_model import LEDSummarizer; print('OK')"
+# Check available models
+ollama list
+
+# Pull recommended model
+ollama pull qwen3:1b
 ```
 
 ### OpenAI Issues
+
 ```bash
 # Verify API key
 echo $OPENAI_API_KEY
 
 # Test connection
-python -c "import openai; print(openai.Model.list())"
+python -c "import openai; print('✅ OpenAI configured')"
 ```
 
 ### Common Issues
+
 | Problem | Solution |
 |---------|----------|
-| Out of memory | Use shorter input texts or OpenAI model |
-| Slow performance | Enable GPU acceleration or use OpenAI |
-| Poor quality | Check transcript quality score and try other model |
-| Import errors | Reinstall dependencies: `pip install -r requirements.txt` |
-| **spaCy model missing** | `python -m spacy download en_core_web_sm` |
-| **Evaluation errors** | `python -m spacy download fr_core_news_sm` |
+| Ollama not found | Install Ollama: `curl -fsSL https://ollama.com/install.sh \| sh` |
+| Out of memory | Use smaller model (qwen3:1b) or OpenAI |
+| Slow performance | Try qwen3:1b or gemma3:1b for faster inference |
+| Poor quality | Try different model or adjust temperature in config |
+| Import errors | Reinstall: `pip install -r requirements.txt` |
 
 ## Documentation
 
-- [Quick Start Guide](docs/QUICKSTART.md)
+- [Quick Start Guide (Français)](docs/QUICKSTART.md)
 - [Quick Start Guide (English)](docs/QUICKSTART_EN.md)
-- [M1 Optimization Guide](docs/M1_OPTIMIZATION.md)  
 - [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and test thoroughly
-4. Commit: `git commit -m "Add feature-name"`
-5. Push: `git push origin feature-name`
-6. Create a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- **Hugging Face**: LED model and transformers library
-- **OpenAI**: GPT models and API
-- **Streamlit**: Beautiful web interface framework
-- **YouTube Transcript API**: Video transcript extraction
+- [LED Removal Summary](docs/LED_REMOVAL_SUMMARY.md) - Details about migrating from LED to Ollama
 
 ## Project Stats
 
-- **Models**: 2 (LED + OpenAI)
-- **Languages**: Multi-language support
-- **Quality Metrics**: 4 comprehensive scores
+- **Models**: 2 (Ollama + OpenAI)
+- **Languages**: Multi-language support (French, English, Spanish, German, etc.)
 - **Platforms**: macOS, Linux, Windows
-- **GPU Support**: Apple Silicon, NVIDIA CUDA
+- **Local LLM**: Qwen3, Gemma3, Mistral via Ollama
 - **Status**: ✅ Production Ready
 
 ---

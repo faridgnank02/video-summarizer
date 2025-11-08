@@ -11,8 +11,8 @@ from enum import Enum
 from dataclasses import dataclass
 import yaml
 
-from .led_model import LEDSummarizer
 from .openai_model import OpenAISummarizer
+from .ollama_model import OllamaSummarizer, OllamaConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ class ModelType(Enum):
     """Types de modèles disponibles"""
     LED = "led"
     OPENAI = "openai"
+    OLLAMA = "ollama"
 
 
 class SummaryLength(Enum):
@@ -65,14 +66,17 @@ class ModelManager:
         self.config = self._load_config()
         
         # Modèles (chargés à la demande)
+        # LED support is disabled in this build to reduce memory footprint
         self._led_model = None
         self._openai_model = None
+        self._ollama_model = None
         
         # Statistiques globales
         self.stats = {
             'total_requests': 0,
             'led_requests': 0,
             'openai_requests': 0,
+            'ollama_requests': 0,
             'total_processing_time': 0.0,
             'average_processing_time': 0.0
         }
@@ -82,16 +86,16 @@ class ModelManager:
     def _load_config(self) -> Dict[str, Any]:
         """Charge la configuration"""
         default_config = {
-            'default_model': 'led',
+            'default_model': 'ollama',
             'auto_fallback': True,
             'models': {
-                'led': {
-                    'model_name': 'allenai/led-base-16384',
-                    'device': 'auto'
-                },
                 'openai': {
-                    'model_name': 'gpt-4',
+                    'model_name': 'gpt-4o-mini',
                     'fallback_model': 'gpt-3.5-turbo'
+                },
+                'ollama': {
+                    'model_name': 'gemma3:1b',
+                    'base_url': 'http://localhost:11434'
                 }
             },
             'summary_lengths': {
@@ -111,35 +115,14 @@ class ModelManager:
         return default_config
     
     @property
-    def led_model(self) -> Optional[LEDSummarizer]:
-        """Accès lazy au modèle LED"""
-        if self._led_model is None:
-            logger.info("Chargement du modèle LED...")
-            start_time = time.time()
-            
-            try:
-                led_config = self.config['models']['led']
-                self._led_model = LEDSummarizer(
-                    model_name=led_config['model_name'],
-                    config_path=self.config_path,
-                    device=led_config.get('device', 'auto')
-                )
-                
-                load_time = time.time() - start_time
-                logger.info(f"Modèle LED chargé en {load_time:.2f}s")
-                
-            except Exception as e:
-                logger.error(f"Impossible de charger le modèle LED: {e}")
-                logger.info("Le modèle LED ne sera pas disponible")
-                # Ne pas réessayer - marquer comme échec définitif
-                self._led_model = False
-                return None
-        
-        # Si le chargement a échoué précédemment
-        if self._led_model is False:
-            return None
-            
-        return self._led_model
+    def led_model(self) -> Optional[Any]:
+        """Accès lazy au modèle LED
+
+        NOTE: LED support is intentionally disabled in this runtime to avoid
+        heavy memory/GPU usage. This property always returns None.
+        """
+        logger.debug("LED model support is disabled in this build; led_model returns None")
+        return None
     
     @property
     def openai_model(self) -> OpenAISummarizer:
@@ -157,6 +140,35 @@ class ModelManager:
         
         return self._openai_model
     
+    @property
+    def ollama_model(self) -> Optional[OllamaSummarizer]:
+        """Accès lazy au modèle Ollama"""
+        if self._ollama_model is None:
+            logger.info("Initialisation du modèle Ollama...")
+            
+            try:
+                ollama_config = self.config['models'].get('ollama', {})
+                self._ollama_model = OllamaSummarizer(
+                    base_url=ollama_config.get('base_url', 'http://localhost:11434'),
+                    model_name=ollama_config.get('model_name', 'gemma3:1b'),
+                    config_path=self.config_path
+                )
+                logger.info("Modèle Ollama initialisé")
+            except OllamaConnectionError as e:
+                logger.error(f"Ollama non disponible: {e}")
+                self._ollama_model = False
+                return None
+            except Exception as e:
+                logger.error(f"Impossible de charger Ollama: {e}")
+                self._ollama_model = False
+                return None
+        
+        # Si le chargement a échoué précédemment
+        if self._ollama_model is False:
+            return None
+            
+        return self._ollama_model
+    
     def is_model_available(self, model_type: ModelType) -> Tuple[bool, str]:
         """
         Vérifie si un modèle est disponible
@@ -169,11 +181,8 @@ class ModelManager:
         """
         try:
             if model_type == ModelType.LED:
-                # Vérifier si le modèle LED peut être chargé
-                led_model = self.led_model
-                if led_model is None:
-                    return False, "Modèle LED indisponible (erreur de chargement)"
-                return True, ""
+                # LED disabled in this distribution/version
+                return False, "LED support disabled in this build"
             
             elif model_type == ModelType.OPENAI:
                 # Vérifier si la clé API OpenAI est configurée
@@ -182,6 +191,13 @@ class ModelManager:
                     return False, "Clé API OpenAI manquante (OPENAI_API_KEY)"
                 
                 _ = self.openai_model
+                return True, ""
+            
+            elif model_type == ModelType.OLLAMA:
+                # Vérifier si Ollama est disponible
+                ollama_model = self.ollama_model
+                if ollama_model is None:
+                    return False, "Ollama non disponible (serveur non démarré ou modèle manquant)"
                 return True, ""
             
         except Exception as e:
@@ -204,37 +220,57 @@ class ModelManager:
         """
         text_length = len(text.split())
         
-        # Vérifier la disponibilité des modèles
-        led_available, _ = self.is_model_available(ModelType.LED)
+        # Vérifier la disponibilité des modèles (LED intentionally disabled)
+        led_available = False
         openai_available, _ = self.is_model_available(ModelType.OPENAI)
+        ollama_available, _ = self.is_model_available(ModelType.OLLAMA)
         
         if priority == "speed":
+            # Priorité à la vitesse : OpenAI > Ollama
             if openai_available:
                 return ModelType.OPENAI
-            elif led_available:
-                return ModelType.LED
+            elif ollama_available:
+                return ModelType.OLLAMA
         
         elif priority == "quality":
-            if led_available:
-                return ModelType.LED
+            # Priorité à la qualité : OpenAI > Ollama
+            if openai_available:
+                return ModelType.OPENAI
+            elif ollama_available:
+                return ModelType.OLLAMA
+        
+        elif priority == "cost":
+            # Priorité au coût (gratuit) : Ollama > OpenAI
+            if ollama_available:
+                return ModelType.OLLAMA
             elif openai_available:
                 return ModelType.OPENAI
         
         else:  # balanced
             # Pour les textes courts, préférer OpenAI (plus rapide)
-            if text_length < 1000 and openai_available:
+            if text_length < 500 and openai_available:
                 return ModelType.OPENAI
-            # Pour les textes longs, préférer LED (spécialisé pour les longs textes)
-            elif text_length >= 1000 and led_available:
-                return ModelType.LED
+            # Pour les textes moyens, préférer Ollama (bon compromis)
+            elif text_length < 2000 and ollama_available:
+                return ModelType.OLLAMA
+            # Pour les textes longs, préférer Ollama (LED removed)
+            elif text_length >= 2000 and ollama_available:
+                return ModelType.OLLAMA
             # Fallback
+            elif ollama_available:
+                return ModelType.OLLAMA
             elif openai_available:
                 return ModelType.OPENAI
-            elif led_available:
-                return ModelType.LED
+            # no LED fallback
         
-        # Par défaut, retourner LED si disponible
-        return ModelType.LED if led_available else ModelType.OPENAI
+        # Par défaut, retourner le premier disponible
+        if ollama_available:
+            return ModelType.OLLAMA
+        elif openai_available:
+            return ModelType.OPENAI
+
+        # Aucun modèle disponible
+        raise RuntimeError("Aucun modèle disponible (Ollama et OpenAI indisponibles)")
     
     def summarize(self, request: SummaryRequest) -> SummaryResponse:
         """
@@ -253,27 +289,25 @@ class ModelManager:
         
         if not model_available:
             # Toujours essayer le fallback automatique
-            fallback_model = (ModelType.OPENAI if request.model_type == ModelType.LED 
-                            else ModelType.LED)
+            # Ordre de fallback : Ollama → OpenAI
+            fallback_models = [ModelType.OLLAMA, ModelType.OPENAI]
+            fallback_models.remove(request.model_type)  # Retirer le modèle déjà essayé
             
-            fallback_available, _ = self.is_model_available(fallback_model)
-            if fallback_available:
-                logger.warning(f"Modèle {request.model_type.value} indisponible, "
-                             f"fallback vers {fallback_model.value}")
-                request.model_type = fallback_model
+            for fallback_model in fallback_models:
+                fallback_available, _ = self.is_model_available(fallback_model)
+                if fallback_available:
+                    logger.warning(f"Modèle {request.model_type.value} indisponible, "
+                                 f"fallback vers {fallback_model.value}")
+                    request.model_type = fallback_model
+                    break
             else:
-                raise RuntimeError(f"Aucun modèle disponible. Erreur LED: {error_msg}")
+                # Aucun modèle disponible
+                raise RuntimeError(f"Aucun modèle disponible. Erreur: {error_msg}")
         
-        elif request.model_type == ModelType.LED:
-            # Double vérification pour LED : essayer d'accéder au modèle
-            led_model = self.led_model
-            if led_model is None:
-                logger.warning("Modèle LED indisponible, fallback vers OpenAI")
-                openai_available, _ = self.is_model_available(ModelType.OPENAI)
-                if openai_available:
-                    request.model_type = ModelType.OPENAI
-                else:
-                    raise RuntimeError("Aucun modèle disponible")
+        # LED support removed: ensure request.model_type is not LED
+        if request.model_type == ModelType.LED:
+            logger.warning("Requested LED model but LED support is disabled; switching to recommendation")
+            request.model_type = self.recommend_model(request.text)
         
         # Ajuster les longueurs selon la configuration
         length_config = self.config['summary_lengths'][request.summary_length.value]
@@ -282,17 +316,7 @@ class ModelManager:
         
         # Générer le résumé
         try:
-            if request.model_type == ModelType.LED:
-                summary = self.led_model.summarize(
-                    request.text,
-                    max_length=max_length,
-                    min_length=min_length,
-                    summary_type=request.summary_length.value
-                )
-                model_used = f"LED ({self.led_model.model_name})"
-                self.stats['led_requests'] += 1
-                
-            else:  # OpenAI
+            if request.model_type == ModelType.OPENAI:
                 summary = self.openai_model.summarize(
                     request.text,
                     summary_type=request.summary_length.value,
@@ -300,6 +324,18 @@ class ModelManager:
                 )
                 model_used = f"OpenAI ({self.openai_model.model_name})"
                 self.stats['openai_requests'] += 1
+                
+            elif request.model_type == ModelType.OLLAMA:
+                summary = self.ollama_model.summarize(
+                    request.text,
+                    summary_type=request.summary_length.value,
+                    language=request.language
+                )
+                model_used = f"Ollama ({self.ollama_model.model_name})"
+                self.stats['ollama_requests'] += 1
+            
+            else:
+                raise ValueError(f"Type de modèle non supporté: {request.model_type}")
             
             processing_time = time.time() - start_time
             
@@ -340,7 +376,7 @@ class ModelManager:
         
         Args:
             text: Texte à résumer
-            model_type: Type de modèle ('led', 'openai', 'auto')
+            model_type: Type de modèle ('led', 'openai', 'ollama', 'auto')
             summary_length: Longueur ('short', 'long')
             language: Langue (optionnel)
             
@@ -350,8 +386,16 @@ class ModelManager:
         # Déterminer le modèle
         if model_type == "auto":
             model_enum = self.recommend_model(text)
+        elif model_type == "led":
+            # Legacy option: map to auto recommendation since LED is disabled
+            model_enum = self.recommend_model(text)
+        elif model_type == "openai":
+            model_enum = ModelType.OPENAI
+        elif model_type == "ollama":
+            model_enum = ModelType.OLLAMA
         else:
-            model_enum = ModelType.LED if model_type == "led" else ModelType.OPENAI
+            # Fallback vers auto
+            model_enum = self.recommend_model(text)
         
         # Créer la requête
         request = SummaryRequest(
@@ -399,6 +443,36 @@ class ModelManager:
         
         return responses
     
+    def _get_model_recommendations(self, model_type: ModelType) -> Dict[str, Any]:
+        """Get recommendations for a specific model"""
+        recommendations = {
+            ModelType.LED: {
+                "best_for": ["Long documents (>2000 words)", "English content", "Offline use"],
+                "pros": ["Free", "Offline", "Specialized for long texts", "GPU accelerated"],
+                "cons": ["Slower", "Requires 8GB+ RAM", "Best for English"],
+                "speed": "Slow (30-200s)",
+                "quality": "★★★★☆",
+                "cost": "Free"
+            },
+            ModelType.OPENAI: {
+                "best_for": ["Quick summaries", "Multi-language", "High quality"],
+                "pros": ["Very fast", "Excellent quality", "Multi-language", "Reliable"],
+                "cons": ["Costs money", "Requires internet", "API limits"],
+                "speed": "Fast (2-5s)",
+                "quality": "★★★★★",
+                "cost": "$$$ (paid API)"
+            },
+            ModelType.OLLAMA: {
+                "best_for": ["Local deployment", "Cost-free", "Medium texts"],
+                "pros": ["Free", "Local", "Fast CPU inference", "Multiple models"],
+                "cons": ["Requires Ollama server", "Moderate quality", "Setup needed"],
+                "speed": "Medium (10-30s)",
+                "quality": "★★★★☆",
+                "cost": "Free (local compute)"
+            }
+        }
+        return recommendations.get(model_type, {})
+    
     def get_stats(self) -> Dict[str, Any]:
         """Retourne les statistiques globales"""
         stats = self.stats.copy()
@@ -406,6 +480,9 @@ class ModelManager:
         # Ajouter les stats des modèles individuels
         if self._openai_model:
             stats['openai_usage'] = self._openai_model.get_usage_stats()
+        
+        if self._ollama_model and self._ollama_model is not False:
+            stats['ollama_usage'] = self._ollama_model.get_usage_stats()
         
         if self._led_model:
             stats['led_info'] = self._led_model.get_model_info()
@@ -418,12 +495,16 @@ class ModelManager:
             'total_requests': 0,
             'led_requests': 0,
             'openai_requests': 0,
+            'ollama_requests': 0,
             'total_processing_time': 0.0,
             'average_processing_time': 0.0
         }
         
         if self._openai_model:
             self._openai_model.reset_usage_stats()
+        
+        if self._ollama_model and self._ollama_model is not False:
+            self._ollama_model.reset_usage_stats()
 
 
 # Fonction utilitaire globale

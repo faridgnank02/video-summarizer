@@ -15,6 +15,23 @@ models:
     max_input_length: 4096
     max_output_length: 512
     model_name: allenai/led-base-16384
+  
+  ollama:
+    base_url: http://localhost:11434
+    model_name: gemma3:1b  # Modèle actuellement installé
+    temperature: 0.3
+    max_tokens: 500
+    top_p: 0.9
+    top_k: 40
+    repeat_penalty: 1.1
+    timeout: 120
+    # Alternative models (uncomment to use)
+    # model_name: qwen3:4b     # Good for reasoning
+    # model_name: mistral:7b    # Fast and balanced
+    # model_name: llama3.1:8b   # Better multilingual
+    # model_name: gemma2:9b     # Better comprehension
+    # model_name: qwen2.5:7b    # Better for long summaries
+  
   ner:
     entities:
     - PERSON
