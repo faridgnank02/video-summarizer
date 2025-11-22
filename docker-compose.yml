@@ -1,0 +1,42 @@
+# Docker Compose pour tests locaux
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+  video-summarizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    image: video-summarizer:latest
+    container_name: video-summarizer-local
+    ports:
+      - "8501:8501"  # Streamlit UI
+      - "8000:8000"  # FastAPI
+    environment:
+      - OLLAMA_MODEL=gemma3:1b
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - STREAMLIT_SERVER_PORT=8501
+      - API_PORT=8000
+    volumes:
+      # Persister les modèles Ollama entre redémarrages
+      - ollama_models:/root/.ollama
+      # Persister les logs
+      - ./logs:/app/logs
+      # Persister le cache
+      - ./data/cache:/app/data/cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    mem_limit: 4g
+    cpus: 2
+
+volumes:
+  ollama_models:
+    driver: local

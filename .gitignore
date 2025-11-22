@@ -59,3 +59,17 @@ logs/
 *.bin
 models/*/
 !models/.gitkeep
+
+# Docker & Déploiement
+docker-compose.override.yml
+/tmp/
+task-definition.json
+
+# AWS
+.aws/
+aws-credentials.json
+
+# Données sensibles
+*.pem
+*.key
+!public.key

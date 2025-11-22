@@ -103,7 +103,18 @@ class YouTubeTranscriptExtractor:
                     transcript_list = YouTubeTranscriptApi().fetch(video_id)
                     selected_language = transcript_list.language_code
                 except Exception as e:
-                    raise VideoIngestionError(f"Aucun transcript disponible pour la vidéo {video_id}: {e}")
+                    # FALLBACK 1: Utiliser yt-dlp si youtube-transcript-api échoue (blocage IP AWS)
+                    logger.warning(f"youtube-transcript-api bloqué, fallback vers yt-dlp: {e}")
+                    try:
+                        return self._get_transcript_with_ytdlp(video_url, video_id, languages_to_try)
+                    except Exception as ytdlp_error:
+                        # FALLBACK 2: Si yt-dlp échoue aussi, message informatif
+                        logger.error(f"yt-dlp aussi bloqué: {ytdlp_error}")
+                        raise VideoIngestionError(
+                            f"YouTube bloque l'extraction depuis AWS. "
+                            f"Veuillez utiliser une vidéo avec sous-titres accessibles publiquement. "
+                            f"Erreur technique: {str(ytdlp_error)[:200]}"
+                        )
             
             # Combiner les segments de transcript
             full_text = ""
@@ -232,6 +243,164 @@ class YouTubeTranscriptExtractor:
         except Exception as e:
             logger.warning(f"Impossible d'obtenir les métadonnées: {e}")
             return {}
+    
+    def _get_transcript_with_ytdlp(self, video_url: str, video_id: str, languages: List[str]) -> VideoData:
+        """
+        Méthode fallback utilisant yt-dlp pour extraire les sous-titres
+        Contourne les blocages IP YouTube sur AWS/cloud providers
+        
+        Args:
+            video_url: URL de la vidéo
+            video_id: ID de la vidéo YouTube
+            languages: Liste des langues à essayer
+            
+        Returns:
+            VideoData: Données de la vidéo avec transcript
+        """
+        if yt_dlp is None:
+            raise VideoIngestionError("yt-dlp non installé. Installez avec: pip install yt-dlp")
+        
+        try:
+            # Configuration yt-dlp pour extraire les sous-titres avec contournement anti-bot
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'writesubtitles': True,
+                'writeautomaticsub': True,  # Essayer les sous-titres auto-générés
+                'subtitleslangs': languages,
+                'skip_download': True,
+                'subtitlesformat': 'json3',  # Format JSON pour parsing facile
+                # Options anti-blocage YouTube (important pour AWS)
+                'nocheckcertificate': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'referer': 'https://www.youtube.com/',
+                # CRITIQUE: Utiliser client Android pour éviter détection bot
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android_embedded', 'android', 'web'],
+                        'skip': ['dash', 'hls'],
+                    }
+                },
+                # Headers additionnels
+                'http_headers': {
+                    'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                }
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extraire les infos sans télécharger
+                info = ydl.extract_info(video_url, download=False)
+                
+                # Récupérer les métadonnées
+                metadata = {
+                    'title': info.get('title', f'Vidéo {video_id}'),
+                    'duration': info.get('duration'),
+                    'view_count': info.get('view_count'),
+                    'upload_date': info.get('upload_date'),
+                    'uploader': info.get('uploader', ''),
+                    'description': info.get('description', '')[:500]
+                }
+                
+                # Extraire les sous-titres disponibles
+                subtitles = info.get('subtitles', {})
+                automatic_captions = info.get('automatic_captions', {})
+                
+                # Combiner les sous-titres manuels et automatiques
+                all_subs = {**subtitles, **automatic_captions}
+                
+                if not all_subs:
+                    raise VideoIngestionError(f"Aucun sous-titre disponible pour {video_id}")
+                
+                # Essayer les langues dans l'ordre
+                selected_lang = None
+                subtitle_data = None
+                
+                for lang in languages:
+                    if lang in all_subs:
+                        selected_lang = lang
+                        subtitle_data = all_subs[lang]
+                        break
+                
+                # Si aucune langue préférée, prendre la première disponible
+                if subtitle_data is None:
+                    selected_lang = list(all_subs.keys())[0]
+                    subtitle_data = all_subs[selected_lang]
+                
+                # Extraire le texte des sous-titres
+                transcript_text = self._parse_ytdlp_subtitles(subtitle_data)
+                
+                # Évaluer la qualité
+                quality_score = self._assess_transcript_quality(transcript_text)
+                metadata['quality_score'] = quality_score
+                metadata['extraction_method'] = 'yt-dlp (fallback)'
+                
+                if quality_score < 0.4:
+                    metadata['quality_warning'] = f'Transcript de faible qualité (score: {quality_score:.2f})'
+                    logger.warning(f"Transcript de faible qualité avec yt-dlp pour {video_id}: {quality_score:.2f}")
+                
+                return VideoData(
+                    url=video_url,
+                    title=metadata.get('title'),
+                    transcript=transcript_text,
+                    duration=metadata.get('duration'),
+                    language=selected_lang,
+                    source='youtube',
+                    metadata=metadata
+                )
+                
+        except Exception as e:
+            raise VideoIngestionError(f"Impossible d'extraire le transcript avec yt-dlp: {e}")
+    
+    def _parse_ytdlp_subtitles(self, subtitle_data: List[Dict]) -> str:
+        """
+        Parse les sous-titres extraits par yt-dlp
+        
+        Args:
+            subtitle_data: Données de sous-titres de yt-dlp
+            
+        Returns:
+            str: Texte complet du transcript
+        """
+        if not subtitle_data:
+            return ""
+        
+        # Trouver le format JSON3 (le plus complet)
+        json_format = None
+        for fmt in subtitle_data:
+            if fmt.get('ext') == 'json3':
+                json_format = fmt
+                break
+        
+        if not json_format:
+            # Fallback: prendre le premier format disponible
+            json_format = subtitle_data[0]
+        
+        # Si c'est une URL, télécharger le contenu
+        if 'url' in json_format:
+            try:
+                import urllib.request
+                import json
+                
+                with urllib.request.urlopen(json_format['url']) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+                    
+                    # Extraire le texte de tous les événements
+                    text_parts = []
+                    if 'events' in data:
+                        for event in data['events']:
+                            if 'segs' in event:
+                                for seg in event['segs']:
+                                    if 'utf8' in seg:
+                                        text_parts.append(seg['utf8'])
+                    
+                    return ' '.join(text_parts).strip()
+                    
+            except Exception as e:
+                logger.error(f"Erreur lors du téléchargement des sous-titres: {e}")
+                return ""
+        
+        return ""
 
 
 class LocalVideoProcessor:

@@ -239,6 +239,35 @@ python -c "import openai; print('✅ OpenAI configured')"
 - [Quick Start Guide (English)](docs/QUICKSTART_EN.md)
 - [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
 - [LED Removal Summary](docs/LED_REMOVAL_SUMMARY.md) - Details about migrating from LED to Ollama
+- **🚀 [Production Deployment Guide](DEPLOYMENT.md)** - Deploy to Docker Hub & AWS
+- **⚡ [Quick Deployment](QUICKSTART_DEPLOYMENT.md)** - Deploy in 3 steps
+
+## 🐳 Production API
+
+This project now includes a production-ready REST API optimized for cloud deployment:
+
+### Quick Deploy
+
+```bash
+# 1. Test locally with Docker
+docker-compose up -d
+
+# 2. Push to Docker Hub
+./scripts/docker_build_push.sh latest
+
+# 3. Deploy to AWS ECS Fargate
+./scripts/deploy_aws.sh
+```
+
+### API Features
+- ✅ **FastAPI** with OpenAPI docs
+- ✅ **Docker optimized** (< 500MB image)
+- ✅ **AWS ECS Fargate** ready (serverless)
+- ✅ **Cost efficient** (~5-15$/month)
+- ✅ **Auto-scaling** capable
+- ✅ **Health checks** & monitoring
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide.
 
 ## Project Stats
 
@@ -246,6 +275,7 @@ python -c "import openai; print('✅ OpenAI configured')"
 - **Languages**: Multi-language support (French, English, Spanish, German, etc.)
 - **Platforms**: macOS, Linux, Windows
 - **Local LLM**: Qwen3, Gemma3, Mistral via Ollama
+- **Production**: Docker + AWS ECS ready
 - **Status**: ✅ Production Ready
 
 ---

@@ -1,0 +1,77 @@
+# Ignorer les fichiers inutiles pour le build Docker
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+
+# Virtual environments
+video-summarizer-env/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Logs
+logs/
+*.log
+
+# Cache et données temporaires
+data/cache/
+temp/
+*.tmp
+
+# Modèles locaux (seront téléchargés dans le container)
+whisper_model/
+*.pt
+
+# Documentation
+docs/
+README.md
+*.md
+
+# Tests
+tests/
+pytest.ini
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# CI/CD
+.github/
+
+# Env files (secrets ne doivent pas être dans l'image)
+.env
+.env.*
+
+# Assets non nécessaires
+assets/examples/
+data/assets/*.gif
+data/assets/*.png
+
+# Scripts de développement local
+scripts/install.py
+scripts/setup.sh
+scripts/clear_ollama_cache.sh
