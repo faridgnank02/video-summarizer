@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from .schemas import TraceSpan
@@ -11,7 +12,7 @@ class TraceStore:
     def __init__(self, db_path: str | Path):
         self._db_path = str(db_path)
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-        with self._conn() as conn:
+        with closing(self._conn()) as conn, conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS spans (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,14 +27,14 @@ class TraceStore:
         return sqlite3.connect(self._db_path)
 
     def add_span(self, trace_id: str, span: TraceSpan) -> None:
-        with self._conn() as conn:
+        with closing(self._conn()) as conn, conn:
             conn.execute(
                 "INSERT INTO spans (trace_id, span_json) VALUES (?, ?)",
                 (trace_id, span.model_dump_json()),
             )
 
     def spans(self, trace_id: str) -> list[TraceSpan]:
-        with self._conn() as conn:
+        with closing(self._conn()) as conn, conn:
             rows = conn.execute(
                 "SELECT span_json FROM spans WHERE trace_id = ? ORDER BY id", (trace_id,)
             ).fetchall()
