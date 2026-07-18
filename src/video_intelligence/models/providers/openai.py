@@ -29,5 +29,9 @@ class OpenAIProvider(Provider):
             )
         except Exception as e:
             raise ProviderError(f"openai request failed: {e}") from e
-        usage = Usage(tokens_in=resp.usage.prompt_tokens, tokens_out=resp.usage.completion_tokens)
-        return parse_json_response(resp.choices[0].message.content, schema), usage
+        try:
+            usage = Usage(tokens_in=resp.usage.prompt_tokens, tokens_out=resp.usage.completion_tokens)
+            content = resp.choices[0].message.content
+        except (AttributeError, IndexError, TypeError) as e:
+            raise ProviderError(f"unexpected openai response shape: {e}") from e
+        return parse_json_response(content, schema), usage

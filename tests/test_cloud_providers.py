@@ -68,6 +68,30 @@ async def test_anthropic_complete_parses_and_reports_usage():
     assert (usage.tokens_in, usage.tokens_out) == (20, 6)
 
 
+async def test_openai_malformed_response_becomes_provider_error():
+    class _MalformedOpenAIClient:
+        def __init__(self):
+            class _Completions:
+                async def create(self, **kwargs):
+                    return _Obj(choices=[], usage=None)
+            self.chat = _Obj(completions=_Completions())
+
+    with pytest.raises(ProviderError):
+        await OpenAIProvider(client=_MalformedOpenAIClient()).complete("gpt-4o-mini", "p", Answer)
+
+
+async def test_anthropic_malformed_response_becomes_provider_error():
+    class _MalformedAnthropicClient:
+        def __init__(self):
+            class _Messages:
+                async def create(self, **kwargs):
+                    return _Obj(content=[], usage=None)
+            self.messages = _Messages()
+
+    with pytest.raises(ProviderError):
+        await AnthropicProvider(client=_MalformedAnthropicClient()).complete("claude-sonnet", "p", Answer)
+
+
 async def test_availability_follows_env(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

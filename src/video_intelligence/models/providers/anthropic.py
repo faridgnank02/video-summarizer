@@ -29,5 +29,9 @@ class AnthropicProvider(Provider):
             )
         except Exception as e:
             raise ProviderError(f"anthropic request failed: {e}") from e
-        usage = Usage(tokens_in=resp.usage.input_tokens, tokens_out=resp.usage.output_tokens)
-        return parse_json_response(resp.content[0].text, schema), usage
+        try:
+            usage = Usage(tokens_in=resp.usage.input_tokens, tokens_out=resp.usage.output_tokens)
+            content = resp.content[0].text
+        except (AttributeError, IndexError, TypeError) as e:
+            raise ProviderError(f"unexpected anthropic response shape: {e}") from e
+        return parse_json_response(content, schema), usage
