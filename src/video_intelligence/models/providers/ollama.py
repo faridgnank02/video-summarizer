@@ -36,7 +36,11 @@ class OllamaProvider(Provider):
                 resp.raise_for_status()
         except httpx.HTTPError as e:
             raise ProviderError(f"ollama request failed: {e}") from e
-        data = resp.json()
-        usage = Usage(tokens_in=data.get("prompt_eval_count", 0),
-                      tokens_out=data.get("eval_count", 0))
-        return parse_json_response(data["message"]["content"], schema), usage
+        try:
+            data = resp.json()
+            content = data["message"]["content"]
+            usage = Usage(tokens_in=data.get("prompt_eval_count", 0),
+                          tokens_out=data.get("eval_count", 0))
+        except (KeyError, TypeError, ValueError) as e:
+            raise ProviderError(f"unexpected ollama response shape: {e}") from e
+        return parse_json_response(content, schema), usage

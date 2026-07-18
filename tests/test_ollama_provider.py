@@ -39,6 +39,15 @@ async def test_http_error_becomes_provider_error():
         await provider.complete("llama3.1:8b", "hi", Answer)
 
 
+async def test_malformed_success_body_becomes_provider_error():
+    def handler(request):
+        return httpx.Response(200, json={"unexpected": "shape"})
+
+    provider = OllamaProvider(transport=make_transport(handler))
+    with pytest.raises(ProviderError):
+        await provider.complete("llama3.1:8b", "hi", Answer)
+
+
 async def test_is_available_true_when_tags_responds():
     def handler(request):
         assert request.url.path == "/api/tags"
