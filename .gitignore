@@ -61,3 +61,8 @@ models/*/
 !models/.gitkeep
 # Serena MCP tooling
 .serena/
+
+# Runtime data (job store, trace store, downloaded audio/work files)
+/data/*.db
+/data/work/
+/data/uploads/
