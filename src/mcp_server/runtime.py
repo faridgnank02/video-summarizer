@@ -9,7 +9,7 @@ from pathlib import Path
 from src.api.jobs import JobStore
 from src.video_intelligence.pipeline import PipelineError, build_pipeline
 from src.video_intelligence.schemas import (
-    JobOptions, QualityPreference, SourceKind, StageEvent, VideoSource,
+    JobOptions, QualityPreference, SourceKind, StageEvent, TraceSpan, VideoSource,
 )
 from src.video_intelligence.tracing import TraceStore
 
@@ -47,7 +47,8 @@ class Runtime:
         self.jobs.update(job_id, status="completed", report=report,
                          trace_id=report.trace_id)
         return {"status": "completed", "job_id": job_id,
-                "trace_id": report.trace_id, "report": report.model_dump()}
+                "trace_id": report.trace_id, "report": report.model_dump(),
+                "trace": self._trace_footer(report.trace_id)}
 
     async def analyze(self, url: str, quality: str = "balanced",
                       language: str = "en", force_whisper: bool = False,
@@ -66,6 +67,28 @@ class Runtime:
             task.add_done_callback(_background_tasks.discard)
             return {"status": "running", "job_id": job_id}
         return await self._execute(job_id, source, options, on_event or _noop)
+
+    def _trace_footer(self, trace_id: str) -> dict:
+        spans = self.traces.spans(trace_id)
+        return {
+            "total_cost_usd": self.traces.total_cost(trace_id),
+            "stages": [{"stage": s.stage, "model_used": s.model_used,
+                        "latency_ms": s.latency_ms} for s in spans],
+        }
+
+    def get_trace(self, trace_id: str) -> dict:
+        spans = self.traces.spans(trace_id)
+        return {"spans": [s.model_dump() for s in spans],
+                "total_cost_usd": self.traces.total_cost(trace_id)}
+
+    async def extract_chapters(self, url: str, quality: str = "balanced",
+                               language: str = "en",
+                               on_event: EventCallback | None = None):
+        result = await self.analyze(url=url, quality=quality, language=language,
+                                    async_=False, on_event=on_event)
+        if result["status"] != "completed":
+            return result
+        return result["report"]["chapters"]
 
     def job_status(self, job_id: str) -> dict:
         job = self.jobs.get(job_id)

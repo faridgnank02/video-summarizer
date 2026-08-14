@@ -2,7 +2,7 @@ import pytest
 
 from src.mcp_server.runtime import Runtime
 from src.video_intelligence.pipeline import PipelineError
-from src.video_intelligence.schemas import AnalysisReport, StageEvent
+from src.video_intelligence.schemas import AnalysisReport, Chapter, StageEvent, TraceSpan
 
 
 class FakePipeline:
@@ -96,3 +96,44 @@ def test_job_status_and_report_not_found(tmp_path):
     rt = make_runtime(tmp_path)
     assert rt.job_status("nope") == {"status": "not_found"}
     assert rt.get_report("nope") == {"status": "not_found"}
+
+
+REPORT_WITH_CHAPTERS = AnalysisReport(
+    summary="s", language="en", trace_id="tr3",
+    chapters=[Chapter(start_s=0, end_s=10, title="Intro", synopsis="hello")])
+
+
+@pytest.mark.asyncio
+async def test_extract_chapters_projects_only_chapters(tmp_path):
+    rt = make_runtime(tmp_path, report=REPORT_WITH_CHAPTERS)
+    chapters = await rt.extract_chapters(url="https://youtu.be/x")
+    assert isinstance(chapters, list)
+    assert chapters[0]["title"] == "Intro"
+
+
+@pytest.mark.asyncio
+async def test_extract_chapters_forwards_failure(tmp_path):
+    rt = make_runtime(tmp_path, error=PipelineError("ingest", "bad url"))
+    result = await rt.extract_chapters(url="https://youtu.be/x")
+    assert result["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_blocking_analyze_attaches_trace_footer(tmp_path):
+    rt = make_runtime(tmp_path, report=SAMPLE_REPORT)
+    rt.traces.add_span("tr1", TraceSpan(stage="synthesize",
+                                        model_used="fake/big",
+                                        cost_usd=0.05, latency_ms=1200))
+    result = await rt.analyze(url="https://youtu.be/x")
+    assert result["trace"]["total_cost_usd"] == 0.05
+    assert result["trace"]["stages"][0] == {
+        "stage": "synthesize", "model_used": "fake/big", "latency_ms": 1200}
+
+
+def test_get_trace_returns_spans_and_cost(tmp_path):
+    rt = make_runtime(tmp_path)
+    rt.traces.add_span("trX", TraceSpan(stage="synthesize",
+                                        model_used="fake/big", cost_usd=0.05))
+    trace = rt.get_trace("trX")
+    assert trace["total_cost_usd"] == 0.05
+    assert trace["spans"][0]["stage"] == "synthesize"
