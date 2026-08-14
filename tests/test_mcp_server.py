@@ -65,3 +65,17 @@ async def test_analyze_video_tool_input_schema_defaults_quality(tmp_path):
     enum_values = find_enum(quality_prop)
     assert enum_values is not None, quality_prop
     assert set(enum_values) == {"cheap", "balanced", "best"}
+
+
+@pytest.mark.asyncio
+async def test_analyze_video_exposes_analyze_visuals(tmp_path):
+    server = make_server(tmp_path)
+    tools = {t.name: t for t in await server.list_tools()}
+    assert "analyze_visuals" in tools["analyze_video"].inputSchema["properties"]
+
+
+@pytest.mark.asyncio
+async def test_extract_chapters_exposes_analyze_visuals(tmp_path):
+    server = make_server(tmp_path)
+    tools = {t.name: t for t in await server.list_tools()}
+    assert "analyze_visuals" in tools["extract_chapters"].inputSchema["properties"]

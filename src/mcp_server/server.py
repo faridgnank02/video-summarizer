@@ -21,12 +21,13 @@ def build_server(runtime: Runtime) -> FastMCP:
     async def analyze_video(url: str, ctx: Context,
                             quality: QualityPreference = QualityPreference.BALANCED,
                             language: str = "en", force_whisper: bool = False,
+                            analyze_visuals: bool = False,
                             async_: bool = False) -> dict:
         """Analyze a YouTube video into summary, chapters, quotes, and action items."""
         return await runtime.analyze(
             url=url, quality=quality, language=language,
-            force_whisper=force_whisper, async_=async_,
-            on_event=_progress(ctx))
+            force_whisper=force_whisper, analyze_visuals=analyze_visuals,
+            async_=async_, on_event=_progress(ctx))
 
     @mcp.tool()
     async def get_job_status(job_id: str) -> dict:
@@ -41,10 +42,12 @@ def build_server(runtime: Runtime) -> FastMCP:
     @mcp.tool()
     async def extract_chapters(url: str, ctx: Context,
                                quality: QualityPreference = QualityPreference.BALANCED,
-                               language: str = "en") -> list | dict:
+                               language: str = "en",
+                               analyze_visuals: bool = False) -> list | dict:
         """Timestamped chapters for a YouTube video."""
         return await runtime.extract_chapters(
-            url=url, quality=quality, language=language, on_event=_progress(ctx))
+            url=url, quality=quality, language=language,
+            analyze_visuals=analyze_visuals, on_event=_progress(ctx))
 
     @mcp.tool()
     async def get_trace(trace_id: str) -> dict:

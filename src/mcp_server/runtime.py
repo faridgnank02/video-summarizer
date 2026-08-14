@@ -52,6 +52,7 @@ class Runtime:
 
     async def analyze(self, url: str, quality: str = "balanced",
                       language: str = "en", force_whisper: bool = False,
+                      analyze_visuals: bool = False,
                       async_: bool = False,
                       on_event: EventCallback | None = None) -> dict:
         try:
@@ -61,7 +62,8 @@ class Runtime:
         source = VideoSource(kind=SourceKind.YOUTUBE, url=url)
         options = JobOptions(language=language,
                              quality=quality_pref,
-                             force_whisper=force_whisper)
+                             force_whisper=force_whisper,
+                             analyze_visuals=analyze_visuals)
         job_id = uuid.uuid4().hex
         self.jobs.create(job_id, source, options)
         if async_:
@@ -87,8 +89,10 @@ class Runtime:
 
     async def extract_chapters(self, url: str, quality: str = "balanced",
                                language: str = "en",
+                               analyze_visuals: bool = False,
                                on_event: EventCallback | None = None):
         result = await self.analyze(url=url, quality=quality, language=language,
+                                    analyze_visuals=analyze_visuals,
                                     async_=False, on_event=on_event)
         if result["status"] != "completed":
             return result
