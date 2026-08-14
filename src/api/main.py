@@ -47,10 +47,15 @@ def create_app(pipeline_factory=build_pipeline,
         except PipelineError as e:
             store.update(job_id, status="failed", error=str(e))
             await queue.put(StageEvent(stage=e.stage, type="failed", message=e.reason))
+        except Exception as e:  # any unexpected failure must not wedge the job
+            store.update(job_id, status="failed", error=f"unexpected error: {e}")
+            await queue.put(StageEvent(stage="pipeline", type="failed", message=str(e)))
         else:
             store.update(job_id, status="completed", report=report, trace_id=report.trace_id)
             await queue.put(StageEvent(stage="pipeline", type="completed"))
-        await queue.put(None)  # sentinel: closes the SSE stream
+        finally:
+            await queue.put(None)          # always close the SSE stream
+            queues.pop(job_id, None)       # prune the queue (unbounded dict)
 
     def _start_job(background: BackgroundTasks, source: VideoSource,
                    options: JobOptions) -> dict:
@@ -72,7 +77,8 @@ def create_app(pipeline_factory=build_pipeline,
                          quality: str = Form("balanced"),
                          force_whisper: bool = Form(False)) -> dict:
         upload_dir.mkdir(parents=True, exist_ok=True)
-        dest = upload_dir / f"{uuid.uuid4().hex}-{file.filename}"
+        safe_name = Path(file.filename or "upload").name or "upload"
+        dest = upload_dir / f"{uuid.uuid4().hex}-{safe_name}"
         dest.write_bytes(await file.read())
         source = VideoSource(kind=SourceKind.LOCAL_FILE, path=str(dest), title=file.filename)
         options = JobOptions(language=language, quality=QualityPreference(quality),

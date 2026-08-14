@@ -90,3 +90,37 @@ def test_upload_creates_local_file_job(tmp_path):
     assert resp.status_code == 200
     job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
     assert job["status"] == "completed"
+
+
+def test_unexpected_pipeline_error_marks_job_failed(tmp_path):
+    class ExplodingPipeline:
+        def __init__(self, on_event):
+            self._on_event = on_event
+        async def run(self, source, options):
+            await self._on_event(StageEvent(stage="ingest", type="started"))
+            raise RuntimeError("boom")
+
+    def factory(on_event=None):
+        return ExplodingPipeline(on_event)
+
+    app = create_app(pipeline_factory=factory, db_path=tmp_path / "app.db",
+                     trace_db=tmp_path / "traces.db", upload_dir=tmp_path / "uploads")
+    client = TestClient(app)
+    job_id = client.post("/api/jobs", json={"url": "https://youtu.be/x"}).json()["job_id"]
+    job = client.get(f"/api/jobs/{job_id}").json()
+    assert job["status"] == "failed"
+    assert "boom" in job["error"]
+    # stream must terminate (sentinel was enqueued), not hang
+    with client.stream("GET", f"/api/jobs/{job_id}/events") as resp:
+        body = "".join(resp.iter_text())
+    assert "failed" in body
+
+
+def test_upload_sanitizes_path_in_filename(tmp_path):
+    client = make_client(tmp_path, report=SAMPLE_REPORT)
+    resp = client.post("/api/jobs/upload",
+                       files={"file": ("../../evil.mp4", b"bytes", "video/mp4")},
+                       data={"language": "en", "quality": "cheap", "force_whisper": "false"})
+    assert resp.status_code == 200
+    job = client.get(f"/api/jobs/{resp.json()['job_id']}").json()
+    assert job["status"] == "completed"
