@@ -99,3 +99,19 @@ async def test_essential_failure_raises_pipeline_error(tmp_path):
     with pytest.raises(PipelineError) as exc:
         await pipeline.run(youtube_source(), JobOptions())
     assert exc.value.stage == "synthesize"
+
+
+def test_build_pipeline_includes_visual_stage(tmp_path):
+    from src.video_intelligence.pipeline import build_pipeline
+    cfg = tmp_path / "models.yaml"
+    cfg.write_text(
+        "transcription: {whisper_model: base}\n"
+        "tasks: {chaptering: {balanced: []}, synthesis: {balanced: []}}\n"
+        "visual: {scene_threshold: 0.5, max_frames: 10, min_interval_s: 4}\n"
+    )
+    pipe = build_pipeline(config_path=str(cfg), db_path=str(tmp_path / "t.db"),
+                          workdir=str(tmp_path / "w"))
+    names = [a.name for a in pipe._agents]
+    assert names == ["ingest", "transcribe", "chapterize", "visual", "synthesize"]
+    visual = pipe._agents[3]
+    assert visual._max_frames == 10

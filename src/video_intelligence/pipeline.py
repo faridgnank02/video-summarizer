@@ -53,6 +53,7 @@ def build_pipeline(config_path: str = "config/models.yaml",
     from .agents.ingestor import Ingestor
     from .agents.synthesizer import Synthesizer
     from .agents.transcriber import Transcriber
+    from .agents.visualizer import Visualizer
     from .models.providers.anthropic import AnthropicProvider
     from .models.providers.ollama import OllamaProvider
     from .models.providers.openai import OpenAIProvider
@@ -68,11 +69,19 @@ def build_pipeline(config_path: str = "config/models.yaml",
     }
     router = Router(config, providers, store)
     whisper_model = config.get("transcription", {}).get("whisper_model", "base")
+    visual_cfg = config.get("visual", {})
     return Pipeline(
         [
             Ingestor(workdir=workdir),
             Transcriber(model_name=whisper_model),
             Chapterizer(router),
+            Visualizer(
+                router,
+                scene_threshold=visual_cfg.get("scene_threshold", 0.4),
+                max_frames=visual_cfg.get("max_frames", 24),
+                min_interval_s=visual_cfg.get("min_interval_s", 8),
+                workdir=workdir,
+            ),
             Synthesizer(router),
         ],
         on_event=on_event,
