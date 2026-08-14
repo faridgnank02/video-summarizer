@@ -7,16 +7,16 @@ transcription:
 tasks:
   chaptering:
     cheap:    ["ollama/llama3.1:8b", "openai/gpt-4o-mini"]
-    balanced: ["ollama/llama3.1:8b", "anthropic/claude-haiku-4-5-20251001"]
+    balanced: ["ollama/llama3.1:8b", "anthropic/claude-haiku-4-5"]
     best:     ["anthropic/claude-sonnet-5"]
   synthesis:
     cheap:    ["openai/gpt-4o-mini"]
     balanced: ["anthropic/claude-sonnet-5", "openai/gpt-4o"]
-    best:     ["anthropic/claude-opus-4-8", "openai/gpt-4o"]
+    best:     ["anthropic/claude-opus-5", "openai/gpt-4o"]
 
 pricing:  # USD per million tokens; local models omitted (cost 0)
   openai/gpt-4o-mini: {input_per_mtok: 0.15, output_per_mtok: 0.60}
   openai/gpt-4o: {input_per_mtok: 2.50, output_per_mtok: 10.00}
-  anthropic/claude-haiku-4-5-20251001: {input_per_mtok: 1.00, output_per_mtok: 5.00}
+  anthropic/claude-haiku-4-5: {input_per_mtok: 1.00, output_per_mtok: 5.00}
   anthropic/claude-sonnet-5: {input_per_mtok: 3.00, output_per_mtok: 15.00}
-  anthropic/claude-opus-4-8: {input_per_mtok: 5.00, output_per_mtok: 25.00}
+  anthropic/claude-opus-5: {input_per_mtok: 5.00, output_per_mtok: 25.00}
