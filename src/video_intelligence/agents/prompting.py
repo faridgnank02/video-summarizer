@@ -27,19 +27,51 @@ def transcript_lines(transcript: Transcript, block_s: float = 15.0) -> str:
     return "\n".join(lines)
 
 
+def _split_line(line: str, max_chars: int) -> list[str]:
+    """Break a single line into <= max_chars pieces on word boundaries (hard-split a giant word)."""
+    if len(line) <= max_chars:
+        return [line]
+    pieces: list[str] = []
+    words = line.split(" ")
+    cur = ""
+    for word in words:
+        # hard-split a single word longer than max_chars
+        while len(word) > max_chars:
+            if cur:
+                pieces.append(cur)
+                cur = ""
+            pieces.append(word[:max_chars])
+            word = word[max_chars:]
+        candidate = f"{cur} {word}".strip()
+        if len(candidate) > max_chars and cur:
+            pieces.append(cur)
+            cur = word
+        else:
+            cur = candidate
+    if cur:
+        pieces.append(cur)
+    return pieces
+
+
 def chunk_text(text: str, max_chars: int) -> list[str]:
-    """Split text into chunks of at most max_chars, breaking on line boundaries."""
+    """Split text into chunks of at most max_chars, breaking on line then word boundaries."""
     if len(text) <= max_chars:
         return [text]
     chunks: list[str] = []
     current: list[str] = []
     size = 0
-    for line in text.splitlines():
-        if size + len(line) + 1 > max_chars and current:
+
+    def flush():
+        nonlocal current, size
+        if current:
             chunks.append("\n".join(current))
             current, size = [], 0
-        current.append(line)
-        size += len(line) + 1
-    if current:
-        chunks.append("\n".join(current))
+
+    for line in text.splitlines():
+        for piece in _split_line(line, max_chars):
+            if size + len(piece) + 1 > max_chars and current:
+                flush()
+            current.append(piece)
+            size += len(piece) + 1
+    flush()
     return chunks

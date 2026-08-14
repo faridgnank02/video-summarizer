@@ -37,3 +37,15 @@ def test_chunk_text_respects_line_boundaries():
 
 def test_chunk_text_single_chunk_when_small():
     assert chunk_text("short", max_chars=100) == ["short"]
+
+
+def test_chunk_text_splits_overlong_line():
+    line = "word " * 100  # ~500 chars, one line
+    chunks = chunk_text(line, max_chars=100)
+    assert all(len(c) <= 100 for c in chunks)
+    assert len(chunks) > 1
+
+
+def test_chunk_text_hard_splits_giant_word():
+    chunks = chunk_text("x" * 500, max_chars=100)
+    assert all(len(c) <= 100 for c in chunks)
