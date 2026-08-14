@@ -1,6 +1,7 @@
 """Execution runtime for the MCP adapter — framework-free, testable without MCP."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -19,6 +20,9 @@ async def _noop(_ev: StageEvent) -> None:
     return None
 
 
+_background_tasks: set[asyncio.Task] = set()
+
+
 class Runtime:
     def __init__(self, pipeline_factory=build_pipeline,
                  db_path: str | Path = "data/app.db",
@@ -31,7 +35,15 @@ class Runtime:
                        options: JobOptions, on_event: EventCallback) -> dict:
         pipeline = self.factory(on_event=on_event)
         self.jobs.update(job_id, status="running")
-        report = await pipeline.run(source, options)
+        try:
+            report = await pipeline.run(source, options)
+        except PipelineError as e:
+            self.jobs.update(job_id, status="failed", error=str(e))
+            return {"status": "failed", "job_id": job_id,
+                    "stage": e.stage, "reason": e.reason}
+        except Exception as e:  # never let a crash escape the tool boundary
+            self.jobs.update(job_id, status="failed", error=f"unexpected error: {e}")
+            return {"status": "failed", "job_id": job_id, "reason": str(e)}
         self.jobs.update(job_id, status="completed", report=report,
                          trace_id=report.trace_id)
         return {"status": "completed", "job_id": job_id,
@@ -47,4 +59,27 @@ class Runtime:
                              force_whisper=force_whisper)
         job_id = uuid.uuid4().hex
         self.jobs.create(job_id, source, options)
+        if async_:
+            task = asyncio.create_task(
+                self._execute(job_id, source, options, _noop))
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+            return {"status": "running", "job_id": job_id}
         return await self._execute(job_id, source, options, on_event or _noop)
+
+    def job_status(self, job_id: str) -> dict:
+        job = self.jobs.get(job_id)
+        if job is None:
+            return {"status": "not_found"}
+        report = job["report"] or {}
+        return {"status": job["status"],
+                "degraded_stages": report.get("degraded_stages", []),
+                "error": job["error"]}
+
+    def get_report(self, job_id: str) -> dict:
+        job = self.jobs.get(job_id)
+        if job is None:
+            return {"status": "not_found"}
+        if job["report"] is None:
+            return {"status": job["status"], "error": job["error"]}
+        return job["report"]

@@ -41,3 +41,58 @@ async def test_blocking_analyze_returns_completed_report(tmp_path):
     # persisted to the job store as completed
     job = rt.jobs.get(result["job_id"])
     assert job["status"] == "completed"
+
+
+import asyncio
+
+
+DEGRADED_REPORT = AnalysisReport(summary="Partial.", language="en",
+                                 trace_id="tr2", degraded_stages=["chaptering"])
+
+
+@pytest.mark.asyncio
+async def test_pipeline_error_maps_to_failed_result(tmp_path):
+    rt = make_runtime(tmp_path, error=PipelineError("transcribe", "no audio"))
+    result = await rt.analyze(url="https://youtu.be/x")
+    assert result["status"] == "failed"
+    assert result["stage"] == "transcribe"
+    assert result["reason"] == "no audio"
+    assert rt.jobs.get(result["job_id"])["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_maps_to_generic_failed_result(tmp_path):
+    rt = make_runtime(tmp_path, error=RuntimeError("boom"))
+    result = await rt.analyze(url="https://youtu.be/x")
+    assert result["status"] == "failed"
+    assert "stage" not in result
+    assert "boom" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_degraded_report_completes_with_degraded_stages(tmp_path):
+    rt = make_runtime(tmp_path, report=DEGRADED_REPORT)
+    result = await rt.analyze(url="https://youtu.be/x")
+    assert result["status"] == "completed"
+    assert result["report"]["degraded_stages"] == ["chaptering"]
+
+
+@pytest.mark.asyncio
+async def test_async_analyze_returns_job_id_then_report(tmp_path):
+    rt = make_runtime(tmp_path, report=SAMPLE_REPORT)
+    result = await rt.analyze(url="https://youtu.be/x", async_=True)
+    assert result["status"] == "running"
+    job_id = result["job_id"]
+    # let the background task finish
+    for _ in range(50):
+        if rt.job_status(job_id)["status"] == "completed":
+            break
+        await asyncio.sleep(0.01)
+    assert rt.job_status(job_id)["status"] == "completed"
+    assert rt.get_report(job_id)["summary"] == "Great talk."
+
+
+def test_job_status_and_report_not_found(tmp_path):
+    rt = make_runtime(tmp_path)
+    assert rt.job_status("nope") == {"status": "not_found"}
+    assert rt.get_report("nope") == {"status": "not_found"}
