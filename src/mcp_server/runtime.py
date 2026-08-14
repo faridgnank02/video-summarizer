@@ -54,9 +54,13 @@ class Runtime:
                       language: str = "en", force_whisper: bool = False,
                       async_: bool = False,
                       on_event: EventCallback | None = None) -> dict:
+        try:
+            quality_pref = QualityPreference(quality)
+        except ValueError:
+            return {"status": "failed", "reason": f"invalid quality: {quality!r}"}
         source = VideoSource(kind=SourceKind.YOUTUBE, url=url)
         options = JobOptions(language=language,
-                             quality=QualityPreference(quality),
+                             quality=quality_pref,
                              force_whisper=force_whisper)
         job_id = uuid.uuid4().hex
         self.jobs.create(job_id, source, options)

@@ -44,3 +44,24 @@ async def test_analyze_video_tool_input_schema_defaults_quality(tmp_path):
     schema = tools["analyze_video"].inputSchema
     assert schema["properties"]["quality"]["default"] == "balanced"
     assert "url" in schema["required"]
+    quality_prop = schema["properties"]["quality"]
+    defs = schema.get("$defs", {})
+
+    def find_enum(node):
+        if not isinstance(node, dict):
+            return None
+        if "enum" in node:
+            return node["enum"]
+        if "$ref" in node:
+            ref_name = node["$ref"].rsplit("/", 1)[-1]
+            return find_enum(defs.get(ref_name, {}))
+        for key in ("allOf", "anyOf", "oneOf"):
+            for sub in node.get(key, []):
+                found = find_enum(sub)
+                if found:
+                    return found
+        return None
+
+    enum_values = find_enum(quality_prop)
+    assert enum_values is not None, quality_prop
+    assert set(enum_values) == {"cheap", "balanced", "best"}

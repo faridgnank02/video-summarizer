@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 mcp_client = pytest.importorskip("mcp.client.stdio")
@@ -9,7 +11,7 @@ from mcp.client.stdio import stdio_client  # noqa: E402
 @pytest.mark.asyncio
 async def test_stdio_handshake_lists_all_tools(tmp_path):
     params = StdioServerParameters(
-        command="python3",
+        command=sys.executable,
         args=["-m", "src.mcp_server", "--transport", "stdio"],
     )
     async with stdio_client(params) as (read, write):

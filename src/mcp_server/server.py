@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from src.video_intelligence.schemas import StageEvent
+from src.video_intelligence.schemas import QualityPreference, StageEvent
 
 from .runtime import Runtime
 
@@ -18,7 +18,8 @@ def build_server(runtime: Runtime) -> FastMCP:
         return on_event
 
     @mcp.tool()
-    async def analyze_video(url: str, ctx: Context, quality: str = "balanced",
+    async def analyze_video(url: str, ctx: Context,
+                            quality: QualityPreference = QualityPreference.BALANCED,
                             language: str = "en", force_whisper: bool = False,
                             async_: bool = False) -> dict:
         """Analyze a YouTube video into summary, chapters, quotes, and action items."""
@@ -38,7 +39,8 @@ def build_server(runtime: Runtime) -> FastMCP:
         return runtime.get_report(job_id)
 
     @mcp.tool()
-    async def extract_chapters(url: str, ctx: Context, quality: str = "balanced",
+    async def extract_chapters(url: str, ctx: Context,
+                               quality: QualityPreference = QualityPreference.BALANCED,
                                language: str = "en") -> list | dict:
         """Timestamped chapters for a YouTube video."""
         return await runtime.extract_chapters(

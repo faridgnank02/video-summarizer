@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from src.mcp_server.runtime import Runtime
@@ -43,7 +45,20 @@ async def test_blocking_analyze_returns_completed_report(tmp_path):
     assert job["status"] == "completed"
 
 
-import asyncio
+@pytest.mark.asyncio
+async def test_analyze_invalid_quality_returns_structured_failure(tmp_path):
+    rt = make_runtime(tmp_path, report=SAMPLE_REPORT)
+    result = await rt.analyze(url="https://youtu.be/x", quality="high")
+    assert result["status"] == "failed"
+    assert "high" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_extract_chapters_invalid_quality_forwards_failure(tmp_path):
+    rt = make_runtime(tmp_path, report=SAMPLE_REPORT)
+    result = await rt.extract_chapters(url="https://youtu.be/x", quality="high")
+    assert result["status"] == "failed"
+    assert "high" in result["reason"]
 
 
 DEGRADED_REPORT = AnalysisReport(summary="Partial.", language="en",
