@@ -34,6 +34,20 @@ export default function ReportView({ report }: { report: Report }) {
           </ol>
         </section>
       )}
+      {report.visual_highlights.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-lg font-semibold">Visuals</h2>
+          <ul className="space-y-2">
+            {report.visual_highlights.map((v, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="w-16 shrink-0 font-mono text-sm text-slate-500">{formatTs(v.timestamp_s)}</span>
+                <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">{v.kind}</span>
+                <span>{v.description ?? v.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {report.key_quotes.length > 0 && (
         <section>
           <h2 className="mb-2 text-lg font-semibold">Key quotes</h2>

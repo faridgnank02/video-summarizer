@@ -11,6 +11,10 @@ const report: Report = {
   language: 'en',
   trace_id: 'tr1',
   degraded_stages: [],
+  visual_highlights: [
+    { timestamp_s: 30, kind: 'slide', text: 'Roadmap 2026', description: null, frame_path: null },
+    { timestamp_s: 90, kind: 'chart', text: '', description: 'Revenue bar chart', frame_path: null },
+  ],
 }
 
 describe('ReportView', () => {
@@ -26,5 +30,12 @@ describe('ReportView', () => {
   it('shows a degraded banner when stages were skipped', () => {
     render(<ReportView report={{ ...report, degraded_stages: ['chapterize'] }} />)
     expect(screen.getByText(/degraded/i)).toBeInTheDocument()
+  })
+
+  it('renders the visuals section with kinds and text', () => {
+    render(<ReportView report={report} />)
+    expect(screen.getByText('Visuals')).toBeInTheDocument()
+    expect(screen.getByText('Roadmap 2026')).toBeInTheDocument()
+    expect(screen.getByText('Revenue bar chart')).toBeInTheDocument()
   })
 })
