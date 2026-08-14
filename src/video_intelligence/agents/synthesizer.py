@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from ..models.router import Router
 from ..schemas import AnalysisReport, KeyQuote, PipelineContext, QualityPreference
 from .base import Agent
-from .prompting import chunk_text, transcript_lines
+from .prompting import chunk_text, transcript_lines, _ts
 
 
 class SynthesisResult(BaseModel):
@@ -23,6 +23,7 @@ SYNTH_PROMPT = """You are an analyst producing a structured report on a video.
 
 Video title: <<TITLE>>
 Chapters (may be empty): <<CHAPTERS>>
+On-screen visuals (may be empty): <<VISUALS>>
 
 Timestamped transcript (or partial summaries for long videos):
 <<TRANSCRIPT>>
@@ -64,6 +65,7 @@ class Synthesizer(Agent):
         prompt = (SYNTH_PROMPT
                   .replace("<<TITLE>>", ctx.source.title or "unknown")
                   .replace("<<CHAPTERS>>", chapters_str)
+                  .replace("<<VISUALS>>", self._visual_lines(ctx))
                   .replace("<<TRANSCRIPT>>", text)
                   .replace("<<LANGUAGE>>", ctx.options.language))
         result = await self._router.complete(
@@ -78,8 +80,19 @@ class Synthesizer(Agent):
             language=ctx.options.language,
             trace_id=ctx.trace_id,
             degraded_stages=list(ctx.degraded_stages),
+            visual_highlights=ctx.visual_artifacts or [],
         )
         return ctx
+
+    @staticmethod
+    def _visual_lines(ctx: PipelineContext) -> str:
+        arts = ctx.visual_artifacts or []
+        if not arts:
+            return "none"
+        return "\n".join(
+            f"[{_ts(a.timestamp_s)}] {a.kind.value}: {a.description or a.text}".rstrip()
+            for a in arts
+        )
 
     async def _reduce(self, ctx: PipelineContext, text: str) -> str:
         parts: list[str] = []
