@@ -21,3 +21,6 @@ python-multipart>=0.0.9
 # Tests
 pytest>=8.0
 pytest-asyncio>=0.23
+
+# MCP
+mcp>=1.2
