@@ -55,10 +55,14 @@ def create_app(pipeline_factory=build_pipeline,
             await queue.put(StageEvent(stage="pipeline", type="completed"))
         finally:
             await queue.put(None)          # always close the SSE stream
-            # NOTE: pruning happens in stream_events/gen() once a subscriber has
-            # drained the queue, not here. A subscriber may not have attached yet
-            # (background tasks can finish before any client calls /events), and
-            # pruning eagerly here would drop the backlog for a late subscriber.
+            # Prune unconditionally once the job is done. A live subscriber captured
+            # the queue OBJECT in gen() (queues.get) before this pop, so removing the
+            # dict entry does not break its drain -- it reads the object to the None
+            # sentinel and returns. A subscriber that attaches after completion finds
+            # queue is None and gets the terminal status replayed from the store.
+            # Popping here (rather than in gen()) guarantees cleanup even when no
+            # client ever calls /events, bounding the queues dict.
+            queues.pop(job_id, None)
 
     def _start_job(background: BackgroundTasks, source: VideoSource,
                    options: JobOptions) -> dict:
@@ -131,10 +135,9 @@ def create_app(pipeline_factory=build_pipeline,
                 if ev is None:
                     break
                 yield f"data: {ev.model_dump_json()}\n\n"
-            # prune only after this subscriber has fully drained the backlog, so a
-            # late subscriber (job finished before anyone called /events) still sees
-            # every event instead of just a collapsed terminal status.
-            queues.pop(job_id, None)
+            # Cleanup is owned by _run_job's finally (which pops the dict entry once
+            # the job ends). This subscriber still holds the queue object reference,
+            # so its drain above is unaffected by that pop.
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 

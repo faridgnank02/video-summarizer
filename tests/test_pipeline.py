@@ -74,11 +74,20 @@ async def test_non_essential_failure_degrades_but_completes(tmp_path):
     fake.enqueue(ProviderError("boom"))
     fake.enqueue(ProviderError("boom"))
     fake.enqueue(SynthesisResult(summary="Still fine."))
-    pipeline, _ = build_test_pipeline(tmp_path, fake)
+    events = []
+
+    async def on_event(ev):
+        events.append((ev.stage, ev.type))
+
+    pipeline, _ = build_test_pipeline(tmp_path, fake, on_event=on_event)
     report = await pipeline.run(youtube_source(), JobOptions())
     assert report.summary == "Still fine."
     assert report.chapters == []
     assert report.degraded_stages == ["chapterize"]
+    # a non-essential failure emits a distinct "degraded" event (not "failed"), so
+    # the SSE consumer does not treat it as terminal and blank the report view
+    assert ("chapterize", "degraded") in events
+    assert ("chapterize", "failed") not in events
 
 
 async def test_essential_failure_raises_pipeline_error(tmp_path):
