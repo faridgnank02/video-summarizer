@@ -11,7 +11,7 @@ export default function JobProgress({ jobId, onFinished }: { jobId: string; onFi
     es.onmessage = (msg) => {
       const ev: StageEvent = JSON.parse(msg.data)
       setEvents((prev) => [...prev, ev])
-      if (ev.stage === 'pipeline' || ev.type === 'failed') {
+      if (ev.type === 'completed' || ev.type === 'failed') {
         es.close()
         onFinished()
       }
@@ -24,6 +24,7 @@ export default function JobProgress({ jobId, onFinished }: { jobId: string; onFi
     const evs = events.filter((e) => e.stage === stage)
     if (evs.some((e) => e.type === 'completed')) return '✓'
     if (evs.some((e) => e.type === 'failed')) return '✗'
+    if (evs.some((e) => e.type === 'degraded')) return '⚠'
     if (evs.some((e) => e.type === 'started')) return '…'
     return '·'
   }

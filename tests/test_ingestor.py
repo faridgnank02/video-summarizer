@@ -88,6 +88,19 @@ async def test_local_file_extracts_audio(tmp_path):
     assert ctx.audio_path.endswith(".wav")
 
 
+async def test_metadata_fetch_failure_logs_and_continues(tmp_path, caplog):
+    def failing_metadata_fetcher(url):
+        raise RuntimeError("network down")
+
+    ing, calls = make_ingestor(tmp_path)
+    ing._metadata_fetcher = failing_metadata_fetcher
+    ctx = ctx_for(VideoSource(kind=SourceKind.YOUTUBE, url="https://youtu.be/dQw4w9WgXcQ"))
+    with caplog.at_level("WARNING"):
+        ctx = await ing.run(ctx)
+    assert ctx.transcript is not None  # job still succeeds
+    assert any("metadata fetch failed" in rec.message for rec in caplog.records)
+
+
 async def test_missing_local_file_raises(tmp_path):
     ing, _ = make_ingestor(tmp_path)
     ctx = ctx_for(VideoSource(kind=SourceKind.LOCAL_FILE, path=str(tmp_path / "gone.mp4")))

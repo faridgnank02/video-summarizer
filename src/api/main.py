@@ -55,7 +55,10 @@ def create_app(pipeline_factory=build_pipeline,
             await queue.put(StageEvent(stage="pipeline", type="completed"))
         finally:
             await queue.put(None)          # always close the SSE stream
-            queues.pop(job_id, None)       # prune the queue (unbounded dict)
+            # NOTE: pruning happens in stream_events/gen() once a subscriber has
+            # drained the queue, not here. A subscriber may not have attached yet
+            # (background tasks can finish before any client calls /events), and
+            # pruning eagerly here would drop the backlog for a late subscriber.
 
     def _start_job(background: BackgroundTasks, source: VideoSource,
                    options: JobOptions) -> dict:
@@ -110,9 +113,17 @@ def create_app(pipeline_factory=build_pipeline,
 
         async def gen():
             queue = queues.get(job_id)
-            if queue is None or job["status"] in ("completed", "failed"):
-                # job already finished (or process restarted): replay terminal status
-                ev = StageEvent(stage="pipeline", type=job["status"], message=job.get("error"))
+            if queue is None:
+                # No queue for this job: it predates this process (restart) or its
+                # backlog was already drained and pruned by an earlier subscriber.
+                # Re-fetch the job fresh rather than trusting the outer `job` snapshot
+                # taken before this generator ran -- that snapshot can be stale (e.g.
+                # still "running") if the background task finished in between, which
+                # would otherwise replay the wrong status to a late subscriber.
+                fresh = store.get(job_id)
+                status = fresh["status"] if fresh is not None else job["status"]
+                error = fresh.get("error") if fresh is not None else job.get("error")
+                ev = StageEvent(stage="pipeline", type=status, message=error)
                 yield f"data: {ev.model_dump_json()}\n\n"
                 return
             while True:
@@ -120,6 +131,10 @@ def create_app(pipeline_factory=build_pipeline,
                 if ev is None:
                     break
                 yield f"data: {ev.model_dump_json()}\n\n"
+            # prune only after this subscriber has fully drained the backlog, so a
+            # late subscriber (job finished before anyone called /events) still sees
+            # every event instead of just a collapsed terminal status.
+            queues.pop(job_id, None)
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 

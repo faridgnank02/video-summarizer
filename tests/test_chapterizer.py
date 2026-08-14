@@ -1,3 +1,5 @@
+import pytest
+
 from src.video_intelligence.agents.chapterizer import ChapterList, Chapterizer
 from src.video_intelligence.models.router import Router
 from src.video_intelligence.schemas import (
@@ -54,3 +56,12 @@ async def test_long_transcript_is_chunked_and_results_concatenated(tmp_path):
 def test_chapterizer_is_non_essential(tmp_path):
     chapterizer, _ = make(tmp_path)
     assert chapterizer.essential is False
+
+
+async def test_missing_transcript_raises(tmp_path):
+    chapterizer, fake = make(tmp_path)
+    ctx = ctx_with_transcript(1)
+    ctx.transcript = None
+    with pytest.raises(ValueError, match="requires a transcript"):
+        await chapterizer.run(ctx)
+    assert fake.calls == []

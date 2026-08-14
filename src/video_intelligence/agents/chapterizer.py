@@ -36,6 +36,8 @@ class Chapterizer(Agent):
         self._router = router
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
+        if ctx.transcript is None:
+            raise ValueError("chapterize requires a transcript")
         text = transcript_lines(ctx.transcript)
         chapters: list[Chapter] = []
         for chunk in chunk_text(text, self.MAX_CHARS):

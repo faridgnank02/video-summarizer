@@ -116,6 +116,29 @@ def test_unexpected_pipeline_error_marks_job_failed(tmp_path):
     assert "failed" in body
 
 
+def test_degraded_stage_does_not_terminate_early(tmp_path):
+    class DegradingPipeline:
+        def __init__(self, on_event):
+            self._on_event = on_event
+
+        async def run(self, source, options):
+            await self._on_event(StageEvent(stage="chapterize", type="degraded", message="boom"))
+            return SAMPLE_REPORT
+
+    def factory(on_event=None):
+        return DegradingPipeline(on_event)
+
+    app = create_app(pipeline_factory=factory, db_path=tmp_path / "a.db",
+                     trace_db=tmp_path / "t.db", upload_dir=tmp_path / "u")
+    client = TestClient(app)
+    job_id = client.post("/api/jobs", json={"url": "https://youtu.be/x"}).json()["job_id"]
+    job = client.get(f"/api/jobs/{job_id}").json()
+    assert job["status"] == "completed"
+    with client.stream("GET", f"/api/jobs/{job_id}/events") as resp:
+        body = "".join(resp.iter_text())
+    assert "degraded" in body and "completed" in body
+
+
 def test_upload_sanitizes_path_in_filename(tmp_path):
     client = make_client(tmp_path, report=SAMPLE_REPORT)
     resp = client.post("/api/jobs/upload",

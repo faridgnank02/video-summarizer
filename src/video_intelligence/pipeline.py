@@ -36,7 +36,7 @@ class Pipeline:
                     await self._emit(agent.name, "failed", str(e))
                     raise PipelineError(agent.name, str(e)) from e
                 ctx.degraded_stages.append(agent.name)
-                await self._emit(agent.name, "failed", f"degraded: {e}")
+                await self._emit(agent.name, "degraded", str(e))
                 continue
             await self._emit(agent.name, "completed")
         if ctx.report is None:

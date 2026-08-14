@@ -1,3 +1,5 @@
+import pytest
+
 from src.video_intelligence.agents.synthesizer import PartialSummary, Synthesizer, SynthesisResult
 from src.video_intelligence.models.router import Router
 from src.video_intelligence.schemas import (
@@ -67,6 +69,15 @@ async def test_long_transcript_uses_map_reduce(tmp_path):
     assert fake.calls[2]["model"] == "big-model"
     assert "part one" in fake.calls[2]["prompt"]
     assert ctx.report.summary == "A fine talk."
+
+
+async def test_missing_transcript_raises(tmp_path):
+    synth, fake = make(tmp_path)
+    ctx = ctx_with_transcript(1)
+    ctx.transcript = None
+    with pytest.raises(ValueError, match="requires a transcript"):
+        await synth.run(ctx)
+    assert fake.calls == []
 
 
 async def test_report_carries_degraded_stages(tmp_path):

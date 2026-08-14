@@ -55,6 +55,8 @@ class Synthesizer(Agent):
         self._router = router
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
+        if ctx.transcript is None:
+            raise ValueError("synthesize requires a transcript")
         text = transcript_lines(ctx.transcript)
         if len(text) > self.MAX_CHARS:
             text = await self._reduce(ctx, text)

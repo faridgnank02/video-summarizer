@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import subprocess
 import uuid
@@ -11,6 +12,8 @@ from ..schemas import (
     PipelineContext, SourceKind, Transcript, TranscriptOrigin, TranscriptSegment,
 )
 from .base import Agent
+
+logger = logging.getLogger(__name__)
 
 
 class IngestError(Exception):
@@ -97,8 +100,9 @@ class Ingestor(Agent):
         try:
             meta = await asyncio.to_thread(self._metadata_fetcher, ctx.source.url)
             ctx.source = ctx.source.model_copy(update=meta)
-        except Exception:
-            pass  # metadata is nice-to-have; never fail the job over it
+        except Exception as e:
+            # metadata is nice-to-have; never fail the job over it
+            logger.warning("metadata fetch failed for %s: %s", ctx.source.url, e)
         if not ctx.options.force_whisper:
             video_id = extract_video_id(ctx.source.url)
             raw = await asyncio.to_thread(self._caption_fetcher, video_id, ctx.options.language)
