@@ -1,9 +1,23 @@
 """Visual agent: sample frames -> OCR -> classify -> VisualArtifacts (non-essential)."""
 from __future__ import annotations
 
-from ..schemas import PipelineContext, VisualArtifact
+from pydantic import BaseModel
+
+from ..models.router import RouterError
+from ..schemas import PipelineContext, QualityPreference, VisualArtifact, VisualKind
 from .base import Agent
 from .visual_frames import classify, is_near_duplicate, rapidocr_text, sample_scene_frames
+
+
+class VisionDescription(BaseModel):
+    description: str
+
+
+_VISION_PROMPT = (
+    "Describe the meaningful visual content of this video frame in one or two "
+    "sentences (a chart, diagram, or figure). Return ONLY JSON: "
+    '{"description": "<string>"}'
+)
 
 
 class Visualizer(Agent):
@@ -39,5 +53,19 @@ class Visualizer(Agent):
             artifacts.append(VisualArtifact(
                 timestamp_s=frame.timestamp_s, kind=classify(text),
                 text=text, frame_path=frame.image_path))
+        if ctx.options.quality == QualityPreference.BEST and self._router is not None:
+            for art in artifacts:
+                if art.kind != VisualKind.CHART:
+                    continue
+                try:
+                    with open(art.frame_path, "rb") as fh:
+                        image = fh.read()
+                    result = await self._router.complete_vision(
+                        task="visual_description", quality=ctx.options.quality,
+                        prompt=_VISION_PROMPT, images=[image], schema=VisionDescription,
+                        trace_id=ctx.trace_id, stage=self.name)
+                    art.description = result.description
+                except (RouterError, OSError):
+                    continue  # vision unavailable/unreadable: OCR text stands
         ctx.visual_artifacts = artifacts
         return ctx

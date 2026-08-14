@@ -58,3 +58,60 @@ async def test_dedups_consecutive_near_identical_frames():
     vis = make(frames, ocr_map)
     ctx = await vis.run(ctx_for(video_path="v.mp4", analyze_visuals=True))
     assert len(ctx.visual_artifacts) == 1
+
+
+from src.video_intelligence.models.router import Router
+from src.video_intelligence.tracing import TraceStore
+from src.video_intelligence.agents.visualizer import VisionDescription
+from tests.fakes import FakeProvider
+
+
+class _VisionFake(FakeProvider):
+    async def complete_vision(self, model, prompt, images, schema):
+        from src.video_intelligence.models.providers.base import Usage
+        return self._queue.pop(0), Usage()
+
+
+def make_with_router(frames, ocr_map, quality, provider):
+    def sampler(video_path, workdir, *, scene_threshold, max_frames, min_interval_s):
+        return frames
+    def ocr(image_path):
+        return ocr_map.get(image_path, "")
+    import tempfile
+    cfg = {"tasks": {"visual_description": {"best": ["fake/v"]}}}
+    router = Router(cfg, {"fake": provider}, TraceStore(tempfile.mktemp()))
+    vis = Visualizer(router=router, frame_sampler=sampler, ocr=ocr)
+    return vis
+
+
+async def test_chart_frame_escalates_on_best(tmp_path):
+    frames = [SampledFrame(timestamp_s=5.0, image_path=str(tmp_path / "c.jpg"))]
+    (tmp_path / "c.jpg").write_bytes(b"img")
+    provider = _VisionFake()
+    provider.enqueue(VisionDescription(description="a bar chart of revenue"))
+    vis = make_with_router(frames, {str(tmp_path / "c.jpg"): "42%"},
+                           JobOptions().quality, provider)
+    ctx = await vis.run(ctx_for(video_path="v.mp4", analyze_visuals=True, quality="best"))
+    assert ctx.visual_artifacts[0].kind == VisualKind.CHART
+    assert ctx.visual_artifacts[0].description == "a bar chart of revenue"
+
+
+async def test_no_escalation_below_best(tmp_path):
+    frames = [SampledFrame(timestamp_s=5.0, image_path=str(tmp_path / "c.jpg"))]
+    (tmp_path / "c.jpg").write_bytes(b"img")
+    provider = _VisionFake()
+    vis = make_with_router(frames, {str(tmp_path / "c.jpg"): "42%"},
+                           JobOptions().quality, provider)
+    ctx = await vis.run(ctx_for(video_path="v.mp4", analyze_visuals=True, quality="balanced"))
+    assert ctx.visual_artifacts[0].description is None
+
+
+async def test_escalation_failure_keeps_ocr_text(tmp_path):
+    frames = [SampledFrame(timestamp_s=5.0, image_path=str(tmp_path / "c.jpg"))]
+    (tmp_path / "c.jpg").write_bytes(b"img")
+    provider = FakeProvider("fake")   # base complete_vision raises NotSupported
+    vis = make_with_router(frames, {str(tmp_path / "c.jpg"): "42%"},
+                           JobOptions().quality, provider)
+    ctx = await vis.run(ctx_for(video_path="v.mp4", analyze_visuals=True, quality="best"))
+    assert ctx.visual_artifacts[0].description is None    # no crash, OCR stands
+    assert ctx.visual_artifacts[0].text == "42%"
