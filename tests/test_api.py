@@ -8,21 +8,26 @@ from src.video_intelligence.tracing import TraceStore
 
 
 class FakePipeline:
-    def __init__(self, on_event, report=None, error: PipelineError | None = None):
+    def __init__(self, on_event, report=None, error: PipelineError | None = None,
+                 captured_options=None):
         self._on_event = on_event
         self._report = report
         self._error = error
+        self._captured_options = captured_options
 
     async def run(self, source, options):
+        if self._captured_options is not None:
+            self._captured_options.append(options)
         await self._on_event(StageEvent(stage="ingest", type="started"))
         if self._error:
             raise self._error
         return self._report
 
 
-def make_client(tmp_path, report=None, error=None):
+def make_client(tmp_path, report=None, error=None, captured_options=None):
     def factory(on_event=None):
-        return FakePipeline(on_event, report=report, error=error)
+        return FakePipeline(on_event, report=report, error=error,
+                            captured_options=captured_options)
 
     app = create_app(pipeline_factory=factory,
                      db_path=tmp_path / "app.db",
@@ -145,6 +150,29 @@ def test_degraded_stage_completes_with_report(tmp_path):
     with client.stream("GET", f"/api/jobs/{job_id}/events") as resp:
         body = "".join(resp.iter_text())
     assert "completed" in body
+
+
+def test_create_job_accepts_analyze_visuals(tmp_path):
+    captured_options = []
+    client = make_client(tmp_path, report=SAMPLE_REPORT, captured_options=captured_options)
+    resp = client.post("/api/jobs", json={
+        "url": "https://youtu.be/x",
+        "options": {"language": "en", "quality": "balanced",
+                    "force_whisper": False, "analyze_visuals": True},
+    })
+    assert resp.status_code == 200
+    assert captured_options[-1].analyze_visuals is True
+
+
+def test_upload_job_accepts_analyze_visuals(tmp_path):
+    captured_options = []
+    client = make_client(tmp_path, report=SAMPLE_REPORT, captured_options=captured_options)
+    resp = client.post("/api/jobs/upload",
+                       files={"file": ("a.wav", b"data", "audio/wav")},
+                       data={"language": "en", "quality": "balanced",
+                             "force_whisper": "false", "analyze_visuals": "true"})
+    assert resp.status_code == 200
+    assert captured_options[-1].analyze_visuals is True
 
 
 def test_upload_sanitizes_path_in_filename(tmp_path):
