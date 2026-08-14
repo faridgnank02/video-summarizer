@@ -81,7 +81,6 @@ def sample_scene_frames(video_path: str, workdir: str, *, scene_threshold: float
 
 
 def rapidocr_text(image_path: str) -> str:
-    from rapidocr_onnxruntime import RapidOCR
     engine = _get_engine()
     result, _ = engine(image_path)
     if not result:
