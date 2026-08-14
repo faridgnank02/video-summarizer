@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from src.video_intelligence.models.providers.base import ProviderError
+from src.video_intelligence.models.providers.base import NotSupported, ProviderError, Usage
 from src.video_intelligence.models.router import Router, RouterError
 from src.video_intelligence.schemas import QualityPreference
 from src.video_intelligence.tracing import TraceStore
@@ -83,3 +83,42 @@ async def test_all_candidates_failing_raises_and_records_error_span(tmp_path):
                               prompt="p", schema=Answer, trace_id="tr", stage="chapterize")
     span = store.spans("tr")[0]
     assert span.status == "error"
+
+
+class VDesc(BaseModel):
+    description: str
+
+
+VISION_CONFIG = {"tasks": {"visual_description": {"best": ["fake/vision-model"]}}}
+
+
+class VisionFake(FakeProvider):
+    def __init__(self, name="fake", supports=True):
+        super().__init__(name)
+        self._supports = supports
+        self.vision_calls = []
+    async def complete_vision(self, model, prompt, images, schema):
+        if not self._supports:
+            raise NotSupported("no vision")
+        self.vision_calls.append({"model": model, "images": images})
+        return self._queue.pop(0), Usage(tokens_in=10, tokens_out=5)
+
+
+async def test_router_complete_vision_returns_parsed(tmp_path):
+    fake = VisionFake()
+    fake.enqueue(VDesc(description="a bar chart"))
+    router = Router(VISION_CONFIG, {"fake": fake}, TraceStore(tmp_path / "t.db"))
+    out = await router.complete_vision(
+        task="visual_description", quality=QualityPreference.BEST, prompt="describe",
+        images=[b"img"], schema=VDesc, trace_id="t", stage="visual")
+    assert out.description == "a bar chart"
+    assert fake.vision_calls[0]["model"] == "vision-model"
+
+
+async def test_router_complete_vision_raises_when_all_unsupported(tmp_path):
+    fake = VisionFake(supports=False)
+    router = Router(VISION_CONFIG, {"fake": fake}, TraceStore(tmp_path / "t.db"))
+    with pytest.raises(RouterError):
+        await router.complete_vision(
+            task="visual_description", quality=QualityPreference.BEST, prompt="d",
+            images=[b"img"], schema=VDesc, trace_id="t", stage="visual")
