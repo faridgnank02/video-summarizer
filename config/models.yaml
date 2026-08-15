@@ -4,6 +4,11 @@
 transcription:
   whisper_model: base        # faster-whisper model name
 
+search:                # ordered candidates; first available wins
+  candidates: ["tavily", "duckduckgo"]
+  tavily:
+    api_key_env: TAVILY_API_KEY   # env var NAME, never a literal key
+
 tasks:
   chaptering:
     cheap:    ["ollama/llama3.1:8b", "openai/gpt-4o-mini"]
