@@ -127,3 +127,12 @@ def test_factchecker_agent_runs_last_and_is_optional(tmp_path):
     assert names[-1] == "FactCheckerAgent"
     assert names.index("Synthesizer") < names.index("FactCheckerAgent")
     assert pipeline._agents[-1].essential is False
+
+
+def test_build_live_pipeline_shape(tmp_path):
+    from src.video_intelligence.pipeline import build_live_pipeline
+    pipeline = build_live_pipeline(config_path="config/models.yaml",
+                                   db_path=str(tmp_path / "t.db"),
+                                   workdir=str(tmp_path / "work"))
+    names = [type(a).__name__ for a in pipeline._agents]
+    assert names == ["Ingestor", "Transcriber", "RollingSummarizerAgent"]
