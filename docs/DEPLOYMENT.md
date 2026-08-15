@@ -32,6 +32,19 @@ docker compose exec ollama ollama pull llama3.1:8b   # first time only
 - Whisper models cache in `whisper_cache`; Ollama models in `ollama_models`.
 - Secrets come only from `.env` (git-ignored). Never commit real keys.
 
+### MCP HTTP host validation
+
+The MCP Streamable-HTTP transport ships with DNS-rebinding protection that
+rejects any `Host` header not in its allowlist — which rejects every request
+that arrives through a reverse proxy. Because the `mcp` service is reachable
+only behind nginx here, the entrypoint disables that protection by default. To
+re-enable it (recommended once a fixed public hostname exists), set on the
+`mcp` service:
+
+- `MCP_ALLOWED_HOSTS` — comma-separated Host values to allow (e.g.
+  `mcp.example.com`).
+- `MCP_ALLOWED_ORIGINS` — comma-separated allowed `Origin` values.
+
 ## AWS ECS Fargate (follow-up — not yet automated)
 
 The `vi-app` and `vi-web` images are built `linux/amd64` and 12-factor, so an
