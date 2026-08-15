@@ -92,20 +92,20 @@ class Runtime:
         except ValueError:
             return {"status": "failed", "reason": f"invalid quality: {quality!r}"}
 
-        checker = self.checker_factory()
-
         if url is not None:
             result = await self.analyze(url=url, quality=quality, language=language,
-                                        fact_check=True, async_=False,
+                                        fact_check=False, async_=False,
                                         on_event=on_event)
             if result.get("status") != "completed":
                 return result
             report = AnalysisReport.model_validate(result["report"])
+            checker = self.checker_factory()
             report.fact_checks = await checker.run(report, None, quality_pref,
                                                     report.trace_id)
             self.jobs.update(result["job_id"], report=report)
             return report.model_dump()
         if claims is not None:
+            checker = self.checker_factory()
             results = await checker.check(claims, quality_pref, uuid.uuid4().hex)
             return {"fact_checks": [fc.model_dump() for fc in results]}
 
@@ -113,6 +113,7 @@ class Runtime:
         if job is None or job["report"] is None:
             return {"status": "failed", "reason": "no completed report for job_id"}
         report = AnalysisReport.model_validate(job["report"])
+        checker = self.checker_factory()
         report.fact_checks = await checker.run(report, None, quality_pref, report.trace_id)
         self.jobs.update(job_id, report=report)
         return {"fact_checks": [fc.model_dump() for fc in report.fact_checks]}
