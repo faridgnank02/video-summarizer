@@ -61,3 +61,21 @@ async def test_is_available_false_on_connect_error():
         raise httpx.ConnectError("refused")
 
     assert await OllamaProvider(transport=make_transport(handler)).is_available() is False
+
+
+def test_base_url_defaults_to_env_var(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
+    provider = OllamaProvider()
+    assert provider._base_url == "http://ollama:11434"
+
+
+def test_base_url_falls_back_to_localhost(monkeypatch):
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    provider = OllamaProvider()
+    assert provider._base_url == "http://localhost:11434"
+
+
+def test_explicit_base_url_overrides_env(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
+    provider = OllamaProvider(base_url="http://custom:9999")
+    assert provider._base_url == "http://custom:9999"
