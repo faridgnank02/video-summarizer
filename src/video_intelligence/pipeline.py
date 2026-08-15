@@ -41,6 +41,7 @@ class Pipeline:
             await self._emit(agent.name, "completed")
         if ctx.report is None:
             raise PipelineError("synthesize", "pipeline finished without a report")
+        ctx.report.degraded_stages = list(ctx.degraded_stages)
         return ctx.report
 
 

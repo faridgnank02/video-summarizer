@@ -76,14 +76,7 @@ async def test_pipeline_degrades_when_search_unavailable(tmp_path):
         essential = True
 
         async def run(self, ctx):
-            # model_construct (not the normal constructor) keeps the exact list
-            # object so later pipeline appends to ctx.degraded_stages are
-            # visible through report.degraded_stages too.
-            ctx.report = AnalysisReport.model_construct(
-                summary="s", chapters=[], key_quotes=[], action_items=[],
-                language="en", trace_id=ctx.trace_id,
-                degraded_stages=ctx.degraded_stages, fact_checks=[],
-            )
+            ctx.report = AnalysisReport(summary="s", language="en", trace_id=ctx.trace_id)
             return ctx
 
     agent, model, _ = make_agent(tmp_path, search_available=False)
