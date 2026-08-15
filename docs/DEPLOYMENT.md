@@ -47,12 +47,18 @@ re-enable it (recommended once a fixed public hostname exists), set on the
 
 ## AWS ECS Fargate (follow-up — not yet automated)
 
-The `vi-app` and `vi-web` images are built `linux/amd64` and 12-factor, so an
-ECS Fargate deploy is a packaging exercise, adapted from the retired
+The `vi-app` and `vi-web` images are 12-factor and build native to the host
+(the Dockerfiles no longer pin a platform — fast on Apple Silicon). Fargate runs
+`linux/amd64`, so an ECS deploy is a packaging exercise, adapted from the retired
 `ollama-integration` scripts (`scripts/deploy_aws.sh`,
 `scripts/setup_eventbridge_schedule.sh`, `scripts/get_app_url.sh`):
 
-1. Build both images for `linux/amd64`; push to ECR.
+1. Build both images explicitly for `linux/amd64` and push to ECR (you request
+   amd64 only here; local `docker compose` builds stay native):
+   ```bash
+   docker buildx build --platform linux/amd64 -t <ecr>/vi-app:latest --push .
+   docker buildx build --platform linux/amd64 -t <ecr>/vi-web:latest --push -f frontend/Dockerfile .
+   ```
 2. Fargate task definition running `web` + `api` + `mcp` (Ollama omitted, or a
    separate task); an ALB fronts port 80 and takes nginx's routing role (or
    nginx rides along in the task).

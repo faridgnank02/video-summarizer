@@ -1,5 +1,7 @@
 # App image: runs either the FastAPI API or the MCP server (same image, two commands).
-FROM --platform=linux/amd64 python:3.12-slim
+# No hardcoded --platform: builds native for the host (fast on Apple Silicon).
+# For an amd64 target (AWS ECS/Fargate) build with: docker buildx build --platform linux/amd64
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
