@@ -2,14 +2,19 @@
 from __future__ import annotations
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from src.video_intelligence.schemas import QualityPreference, StageEvent
 
 from .runtime import Runtime
 
 
-def build_server(runtime: Runtime) -> FastMCP:
-    mcp = FastMCP("Video Intelligence")
+def build_server(runtime: Runtime,
+                 transport_security: TransportSecuritySettings | None = None) -> FastMCP:
+    kwargs = {}
+    if transport_security is not None:
+        kwargs["transport_security"] = transport_security
+    mcp = FastMCP("Video Intelligence", **kwargs)
 
     def _progress(ctx: Context):
         async def on_event(ev: StageEvent) -> None:

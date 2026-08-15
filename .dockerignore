@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+.serena
+.superpowers
+video-summarizer-env
+**/node_modules
+frontend/dist
+data
+logs
+**/__pycache__
+*.pyc
+.pytest_cache
+docs
+*.db
+*.log
+.env

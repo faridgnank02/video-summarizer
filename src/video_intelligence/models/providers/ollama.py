@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import httpx
 
 from .base import Provider, ProviderError, Usage, parse_json_response
@@ -8,9 +10,10 @@ from .base import Provider, ProviderError, Usage, parse_json_response
 class OllamaProvider(Provider):
     name = "ollama"
 
-    def __init__(self, base_url: str = "http://localhost:11434",
+    def __init__(self, base_url: str | None = None,
                  transport: httpx.AsyncBaseTransport | None = None):
-        self._base_url = base_url
+        self._base_url = base_url or os.environ.get(
+            "OLLAMA_BASE_URL", "http://localhost:11434")
         self._transport = transport
 
     def _client(self, timeout: float) -> httpx.AsyncClient:
