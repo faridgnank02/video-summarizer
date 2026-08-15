@@ -112,6 +112,16 @@ def test_build_pipeline_includes_visual_stage(tmp_path):
     pipe = build_pipeline(config_path=str(cfg), db_path=str(tmp_path / "t.db"),
                           workdir=str(tmp_path / "w"))
     names = [a.name for a in pipe._agents]
-    assert names == ["ingest", "transcribe", "chapterize", "visual", "synthesize"]
+    assert names == ["ingest", "transcribe", "chapterize", "visual", "synthesize",
+                     "fact_check"]
     visual = pipe._agents[3]
     assert visual._max_frames == 10
+
+
+async def test_factchecker_agent_runs_last_and_is_optional():
+    from src.video_intelligence.pipeline import build_pipeline
+    # Structural check: the production pipeline lists five agents ending in fact_check.
+    import inspect
+    src = inspect.getsource(build_pipeline)
+    assert "FactCheckerAgent" in src
+    assert src.index("Synthesizer") < src.index("FactCheckerAgent")

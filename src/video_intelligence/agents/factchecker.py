@@ -7,10 +7,12 @@ from pydantic import BaseModel, Field
 
 from ..models.router import Router, RouterError
 from ..schemas import (
-    AnalysisReport, Claim, ClaimVerdict, Evidence, FactCheck, QualityPreference, Transcript,
+    AnalysisReport, Claim, ClaimVerdict, Evidence, FactCheck, PipelineContext,
+    QualityPreference, Transcript,
 )
 from ..search.base import NoSearchProvider, SearchError
 from ..search.router import SearchRouter
+from .base import Agent
 from .prompting import transcript_lines
 
 
@@ -146,3 +148,52 @@ class FactChecker:
                   quality: QualityPreference, trace_id: str) -> list[FactCheck]:
         claims = await self.extract_claims(report, transcript, quality, trace_id)
         return [await self.verify_claim(c, quality, trace_id) for c in claims]
+
+
+class FactCheckerAgent(Agent):
+    name = "fact_check"
+    essential = False
+
+    def __init__(self, checker: FactChecker):
+        self._checker = checker
+
+    async def run(self, ctx: PipelineContext) -> PipelineContext:
+        if not ctx.options.fact_check:
+            return ctx
+        if ctx.report is None:
+            raise ValueError("fact_check requires a report")
+        ctx.report.fact_checks = await self._checker.run(
+            ctx.report, ctx.transcript, ctx.options.quality, ctx.trace_id)
+        return ctx
+
+
+def build_search_router(config: dict) -> SearchRouter:
+    from ..search.providers.duckduckgo import DuckDuckGoProvider
+    from ..search.providers.tavily import TavilyProvider
+    api_key_env = config.get("search", {}).get("tavily", {}).get("api_key_env", "TAVILY_API_KEY")
+    providers = {
+        "tavily": TavilyProvider(api_key_env=api_key_env),
+        "duckduckgo": DuckDuckGoProvider(),
+    }
+    return SearchRouter(config, providers)
+
+
+def build_factchecker(config_path: str = "config/models.yaml",
+                      db_path: str = "data/traces.db") -> FactChecker:
+    from ..models.providers.anthropic import AnthropicProvider
+    from ..models.providers.ollama import OllamaProvider
+    from ..models.providers.openai import OpenAIProvider
+    from ..models.router import Router, load_model_config
+    from ..tracing import TraceStore
+
+    config = load_model_config(config_path)
+    store = TraceStore(db_path)
+    router = Router(config, {
+        "ollama": OllamaProvider(), "openai": OpenAIProvider(),
+        "anthropic": AnthropicProvider(),
+    }, store)
+    caps = config.get("fact_check", {})
+    return FactChecker(router, build_search_router(config),
+                       max_claims=caps.get("max_claims", 8),
+                       max_steps=caps.get("max_steps", 3),
+                       results_per_search=caps.get("results_per_search", 5))

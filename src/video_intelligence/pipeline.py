@@ -53,6 +53,7 @@ def build_pipeline(config_path: str = "config/models.yaml",
     from .agents.ingestor import Ingestor
     from .agents.synthesizer import Synthesizer
     from .agents.transcriber import Transcriber
+    from .agents.factchecker import FactChecker, FactCheckerAgent, build_search_router
     from .agents.visualizer import Visualizer
     from .models.providers.anthropic import AnthropicProvider
     from .models.providers.ollama import OllamaProvider
@@ -70,6 +71,11 @@ def build_pipeline(config_path: str = "config/models.yaml",
     router = Router(config, providers, store)
     whisper_model = config.get("transcription", {}).get("whisper_model", "base")
     visual_cfg = config.get("visual", {})
+    caps = config.get("fact_check", {})
+    factchecker = FactChecker(router, build_search_router(config),
+                              max_claims=caps.get("max_claims", 8),
+                              max_steps=caps.get("max_steps", 3),
+                              results_per_search=caps.get("results_per_search", 5))
     return Pipeline(
         [
             Ingestor(workdir=workdir),
@@ -83,6 +89,7 @@ def build_pipeline(config_path: str = "config/models.yaml",
                 workdir=workdir,
             ),
             Synthesizer(router),
+            FactCheckerAgent(factchecker),
         ],
         on_event=on_event,
     )
