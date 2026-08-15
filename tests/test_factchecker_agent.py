@@ -1,5 +1,6 @@
 import pytest
 
+from src.video_intelligence.agents.base import Agent
 from src.video_intelligence.agents.factchecker import (
     ExtractedClaims, FactChecker, FactCheckerAgent, LoopResponse,
 )
@@ -65,3 +66,31 @@ async def test_agent_raises_when_search_unavailable(tmp_path):
     model.enqueue(ExtractedClaims(claims=[Claim(text="A claim.")]))
     with pytest.raises(NoSearchProvider):
         await agent.run(ctx_with_report(fact_check=True))
+
+
+async def test_pipeline_degrades_when_search_unavailable(tmp_path):
+    from src.video_intelligence.pipeline import Pipeline
+
+    class ReportStub(Agent):
+        name = "synthesize"
+        essential = True
+
+        async def run(self, ctx):
+            # model_construct (not the normal constructor) keeps the exact list
+            # object so later pipeline appends to ctx.degraded_stages are
+            # visible through report.degraded_stages too.
+            ctx.report = AnalysisReport.model_construct(
+                summary="s", chapters=[], key_quotes=[], action_items=[],
+                language="en", trace_id=ctx.trace_id,
+                degraded_stages=ctx.degraded_stages, fact_checks=[],
+            )
+            return ctx
+
+    agent, model, _ = make_agent(tmp_path, search_available=False)
+    model.enqueue(ExtractedClaims(claims=[Claim(text="A claim.")]))
+    pipeline = Pipeline([ReportStub(), agent])
+    report = await pipeline.run(
+        VideoSource(kind=SourceKind.YOUTUBE, url="https://youtu.be/x"),
+        JobOptions(fact_check=True),
+    )
+    assert "fact_check" in report.degraded_stages

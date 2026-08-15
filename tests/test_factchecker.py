@@ -5,6 +5,7 @@ from src.video_intelligence.models.router import Router
 from src.video_intelligence.schemas import (
     AnalysisReport, Claim, ClaimVerdict, QualityPreference,
 )
+from src.video_intelligence.models.providers.base import ProviderError
 from src.video_intelligence.search.base import NoSearchProvider, SearchResult
 from src.video_intelligence.search.router import SearchRouter
 from src.video_intelligence.tracing import TraceStore
@@ -80,6 +81,24 @@ async def test_verify_no_provider_bubbles_up(tmp_path):
     checker, _, _ = make(tmp_path, available=False)
     with pytest.raises(NoSearchProvider):
         await checker.verify_claim(Claim(text="claim"), BAL, "tr1")
+
+
+async def test_extract_returns_empty_on_router_error(tmp_path):
+    checker, model, _ = make(tmp_path)
+    model.enqueue(ProviderError("boom"))
+    model.enqueue(ProviderError("boom"))
+    claims = await checker.extract_claims(a_report(), None, BAL, "tr1")
+    assert claims == []
+
+
+async def test_verify_router_error_mid_loop_is_unverified(tmp_path):
+    checker, model, search = make(tmp_path)
+    search.enqueue([SearchResult(title="T", url="https://e.com", snippet="s")])
+    model.enqueue(ProviderError("boom"))
+    model.enqueue(ProviderError("boom"))
+    fc = await checker.verify_claim(Claim(text="c"), BAL, "tr1")
+    assert fc.verdict == "unverified"
+    assert [e.url for e in fc.evidence] == ["https://e.com"]
 
 
 async def test_check_wraps_bare_strings(tmp_path):
