@@ -54,4 +54,15 @@ def build_server(runtime: Runtime) -> FastMCP:
         """Cost and latency spans for a completed analysis."""
         return runtime.get_trace(trace_id)
 
+    @mcp.tool()
+    async def fact_check_claims(ctx: Context, job_id: str | None = None,
+                                url: str | None = None,
+                                claims: list[str] | None = None,
+                                quality: QualityPreference = QualityPreference.BALANCED,
+                                language: str = "en") -> dict:
+        """Fact-check a video's claims. Provide exactly one of job_id, url, or claims."""
+        return await runtime.fact_check(
+            job_id=job_id, url=url, claims=claims, quality=quality,
+            language=language, on_event=_progress(ctx))
+
     return mcp

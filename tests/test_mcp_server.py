@@ -34,7 +34,7 @@ async def test_server_registers_all_five_tools(tmp_path):
     tools = await server.list_tools()
     names = {t.name for t in tools}
     assert names == {"analyze_video", "get_job_status", "get_report",
-                     "extract_chapters", "get_trace"}
+                     "extract_chapters", "get_trace", "fact_check_claims"}
 
 
 @pytest.mark.asyncio
