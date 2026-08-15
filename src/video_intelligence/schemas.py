@@ -133,12 +133,22 @@ class JobOptions(BaseModel):
     force_whisper: bool = False
     analyze_visuals: bool = False
     fact_check: bool = False
+    live: bool = False
 
 
 class StageEvent(BaseModel):
     stage: str
-    type: str  # started | progress | completed | failed
+    type: str  # started | progress | completed | failed | degraded | summary
     message: str | None = None
+    data: dict | None = None
+
+
+class RollingSummary(BaseModel):
+    window_index: int
+    window_start_s: float
+    window_end_s: float
+    delta: str
+    running_summary: str
 
 
 class PipelineContext(BaseModel):
