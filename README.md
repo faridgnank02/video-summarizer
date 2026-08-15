@@ -7,9 +7,9 @@ quotes, and action items — with cost-aware model routing and per-stage tracing
 ## Architecture
 
 ```
-Ingestor ──▶ Transcriber ──▶ Chapterizer ──▶ Synthesizer
-(yt-dlp,     (faster-        (small local    (frontier model:
- captions)    whisper)        model/Ollama)   Claude / GPT)
+Ingestor ──▶ Transcriber ──▶ Chapterizer ──▶ Visualizer ──▶ Synthesizer
+(yt-dlp,     (faster-        (small local    (OCR + optional  (frontier model:
+ captions)    whisper)        model/Ollama)   vision LLM)      Claude / GPT)
 ```
 
 - **Core library** `src/video_intelligence/` — agents, model router, tracing.
@@ -21,6 +21,12 @@ Ingestor ──▶ Transcriber ──▶ Chapterizer ──▶ Synthesizer
   (override with `force_whisper`).
 - **Tracing** — every model call records model, tokens, cost, latency, and
   fallback provenance to SQLite; the UI shows the full cost breakdown per job.
+- **Visual analysis (opt-in)** — set `analyze_visuals` (default off) to fetch
+  a low-res copy of the video and sample frames on scene changes. Each frame
+  is OCR'd with RapidOCR to pull on-screen content (slides, code, charts),
+  with an optional vision-LLM escalation for the `best` quality tier. Results
+  land in the report's `visual_highlights` and feed into the summary.
+  Requires `ffmpeg` and `rapidocr-onnxruntime`.
 
 ## Requirements
 

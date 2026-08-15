@@ -73,6 +73,22 @@ def default_audio_extractor(path: str, workdir: Path) -> Path:
     return out
 
 
+def default_video_downloader(url: str, workdir: Path) -> Path:
+    import yt_dlp
+    stem = uuid.uuid4().hex
+    with yt_dlp.YoutubeDL({
+        "quiet": True,
+        # low-res is enough for OCR; keep bandwidth/latency down
+        "format": "worst[height>=360]/worst",
+        "outtmpl": str(workdir / f"{stem}.%(ext)s"),
+    }) as ydl:
+        ydl.download([url])
+    files = list(workdir.glob(f"{stem}.*"))
+    if not files:
+        raise IngestError(f"yt-dlp produced no video file for {url!r}")
+    return files[0]
+
+
 class Ingestor(Agent):
     name = "ingest"
     essential = True
@@ -81,12 +97,14 @@ class Ingestor(Agent):
                  metadata_fetcher=default_metadata_fetcher,
                  caption_fetcher=default_caption_fetcher,
                  audio_downloader=default_audio_downloader,
-                 audio_extractor=default_audio_extractor):
+                 audio_extractor=default_audio_extractor,
+                 video_downloader=default_video_downloader):
         self._workdir = Path(workdir)
         self._metadata_fetcher = metadata_fetcher
         self._caption_fetcher = caption_fetcher
         self._audio_downloader = audio_downloader
         self._audio_extractor = audio_extractor
+        self._video_downloader = video_downloader
 
     async def run(self, ctx: PipelineContext) -> PipelineContext:
         self._workdir.mkdir(parents=True, exist_ok=True)
@@ -96,6 +114,15 @@ class Ingestor(Agent):
             await self._ingest_local(ctx)
         return ctx
 
+    async def _maybe_download_video(self, ctx: PipelineContext) -> None:
+        if not ctx.options.analyze_visuals:
+            return
+        try:
+            path = await asyncio.to_thread(self._video_downloader, ctx.source.url, self._workdir)
+            ctx.video_path = str(path)
+        except Exception as e:
+            logger.warning("video download failed for %s: %s", ctx.source.url, e)
+
     async def _ingest_youtube(self, ctx: PipelineContext) -> None:
         try:
             meta = await asyncio.to_thread(self._metadata_fetcher, ctx.source.url)
@@ -103,6 +130,7 @@ class Ingestor(Agent):
         except Exception as e:
             # metadata is nice-to-have; never fail the job over it
             logger.warning("metadata fetch failed for %s: %s", ctx.source.url, e)
+        have_transcript = False
         if not ctx.options.force_whisper:
             video_id = extract_video_id(ctx.source.url)
             raw = await asyncio.to_thread(self._caption_fetcher, video_id, ctx.options.language)
@@ -116,9 +144,11 @@ class Ingestor(Agent):
                     language=ctx.options.language,
                     origin=TranscriptOrigin.CAPTIONS,
                 )
-                return
-        path = await asyncio.to_thread(self._audio_downloader, ctx.source.url, self._workdir)
-        ctx.audio_path = str(path)
+                have_transcript = True
+        if not have_transcript:
+            path = await asyncio.to_thread(self._audio_downloader, ctx.source.url, self._workdir)
+            ctx.audio_path = str(path)
+        await self._maybe_download_video(ctx)
 
     async def _ingest_local(self, ctx: PipelineContext) -> None:
         src = Path(ctx.source.path or "")
@@ -127,3 +157,5 @@ class Ingestor(Agent):
         ctx.source = ctx.source.model_copy(update={"title": ctx.source.title or src.stem})
         path = await asyncio.to_thread(self._audio_extractor, str(src), self._workdir)
         ctx.audio_path = str(path)
+        if ctx.options.analyze_visuals:
+            ctx.video_path = str(src)

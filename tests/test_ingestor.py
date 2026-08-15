@@ -18,7 +18,7 @@ def ctx_for(source: VideoSource, **opts) -> PipelineContext:
 
 
 def make_ingestor(tmp_path, captions=RAW_CAPTIONS, downloads=None):
-    calls = {"downloaded": False}
+    calls = {"downloaded": False, "video_downloaded": False}
 
     def metadata_fetcher(url):
         return {"title": "T", "duration_s": 120.0, "channel": "C"}
@@ -37,9 +37,15 @@ def make_ingestor(tmp_path, captions=RAW_CAPTIONS, downloads=None):
         out.write_bytes(b"fake")
         return out
 
+    def video_downloader(url, workdir: Path):
+        calls["video_downloaded"] = True
+        out = workdir / "v.mp4"
+        out.write_bytes(b"fakevideo")
+        return out
+
     ing = Ingestor(workdir=tmp_path, metadata_fetcher=metadata_fetcher,
                    caption_fetcher=caption_fetcher, audio_downloader=audio_downloader,
-                   audio_extractor=audio_extractor)
+                   audio_extractor=audio_extractor, video_downloader=video_downloader)
     return ing, calls
 
 
@@ -106,3 +112,42 @@ async def test_missing_local_file_raises(tmp_path):
     ctx = ctx_for(VideoSource(kind=SourceKind.LOCAL_FILE, path=str(tmp_path / "gone.mp4")))
     with pytest.raises(IngestError):
         await ing.run(ctx)
+
+
+async def test_visuals_off_does_not_download_video(tmp_path):
+    ing, calls = make_ingestor(tmp_path)
+    ctx = ctx_for(VideoSource(kind=SourceKind.YOUTUBE, url="https://youtu.be/dQw4w9WgXcQ"))
+    ctx = await ing.run(ctx)
+    assert calls["video_downloaded"] is False
+    assert ctx.video_path is None
+
+
+async def test_visuals_on_downloads_video_even_with_captions(tmp_path):
+    ing, calls = make_ingestor(tmp_path)
+    ctx = ctx_for(VideoSource(kind=SourceKind.YOUTUBE, url="https://youtu.be/dQw4w9WgXcQ"),
+                  analyze_visuals=True)
+    ctx = await ing.run(ctx)
+    assert ctx.transcript is not None          # captions still used
+    assert calls["video_downloaded"] is True
+    assert ctx.video_path is not None
+
+
+async def test_visuals_on_local_file_sets_video_path_to_source(tmp_path):
+    src = tmp_path / "clip.mp4"
+    src.write_bytes(b"data")
+    ing, calls = make_ingestor(tmp_path)
+    ctx = ctx_for(VideoSource(kind=SourceKind.LOCAL_FILE, path=str(src)),
+                  analyze_visuals=True)
+    ctx = await ing.run(ctx)
+    assert ctx.video_path == str(src)
+
+
+async def test_video_download_failure_is_non_fatal(tmp_path):
+    def boom(url, workdir):
+        raise RuntimeError("network down")
+    ing, calls = make_ingestor(tmp_path)
+    ing._video_downloader = boom
+    ctx = ctx_for(VideoSource(kind=SourceKind.YOUTUBE, url="https://youtu.be/dQw4w9WgXcQ"),
+                  analyze_visuals=True)
+    ctx = await ing.run(ctx)          # must not raise
+    assert ctx.video_path is None

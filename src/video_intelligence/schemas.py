@@ -17,6 +17,13 @@ class TranscriptOrigin(StrEnum):
     WHISPER = "whisper"
 
 
+class VisualKind(StrEnum):
+    SLIDE = "slide"
+    CODE = "code"
+    CHART = "chart"
+    OTHER = "other"
+
+
 class QualityPreference(StrEnum):
     CHEAP = "cheap"
     BALANCED = "balanced"
@@ -55,6 +62,14 @@ class Chapter(BaseModel):
     synopsis: str
 
 
+class VisualArtifact(BaseModel):
+    timestamp_s: float
+    kind: VisualKind
+    text: str = ""
+    description: str | None = None
+    frame_path: str | None = None
+
+
 class KeyQuote(BaseModel):
     timestamp_s: float
     speaker: str | None = None
@@ -69,6 +84,7 @@ class AnalysisReport(BaseModel):
     language: str
     trace_id: str
     degraded_stages: list[str] = Field(default_factory=list)
+    visual_highlights: list[VisualArtifact] = Field(default_factory=list)
 
 
 class TraceSpan(BaseModel):
@@ -86,6 +102,7 @@ class JobOptions(BaseModel):
     language: str = "en"
     quality: QualityPreference = QualityPreference.BALANCED
     force_whisper: bool = False
+    analyze_visuals: bool = False
 
 
 class StageEvent(BaseModel):
@@ -99,7 +116,9 @@ class PipelineContext(BaseModel):
     options: JobOptions
     trace_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     audio_path: str | None = None
+    video_path: str | None = None
     transcript: Transcript | None = None
     chapters: list[Chapter] | None = None
     report: AnalysisReport | None = None
+    visual_artifacts: list[VisualArtifact] | None = None
     degraded_stages: list[str] = Field(default_factory=list)

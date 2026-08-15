@@ -18,6 +18,10 @@ class ProviderError(Exception):
     """Any provider failure: network, API error, unparseable output."""
 
 
+class NotSupported(ProviderError):
+    """The provider does not implement this capability (e.g. vision)."""
+
+
 class Provider(ABC):
     name: str
 
@@ -26,6 +30,10 @@ class Provider(ABC):
 
     @abstractmethod
     async def complete(self, model: str, prompt: str, schema: type[T]) -> tuple[T, Usage]: ...
+
+    async def complete_vision(self, model: str, prompt: str, images: list[bytes],
+                              schema: type[T]) -> tuple[T, Usage]:
+        raise NotSupported(f"{self.name} does not support vision")
 
 
 def parse_json_response(text: str, schema: type[T]) -> T:

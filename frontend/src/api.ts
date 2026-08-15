@@ -1,8 +1,13 @@
 export interface Chapter { start_s: number; end_s: number; title: string; synopsis: string }
 export interface KeyQuote { timestamp_s: number; speaker: string | null; text: string }
+export interface VisualArtifact {
+  timestamp_s: number; kind: 'slide' | 'code' | 'chart' | 'other'
+  text: string; description: string | null; frame_path: string | null
+}
 export interface Report {
   summary: string; chapters: Chapter[]; key_quotes: KeyQuote[]
   action_items: string[]; language: string; trace_id: string; degraded_stages: string[]
+  visual_highlights: VisualArtifact[]
 }
 export interface Job {
   job_id: string; status: 'queued' | 'running' | 'completed' | 'failed'
@@ -14,7 +19,7 @@ export interface TraceSpan {
 }
 export interface Trace { spans: TraceSpan[]; total_cost_usd: number }
 export interface StageEvent { stage: string; type: string; message: string | null }
-export interface JobOptions { language: string; quality: 'cheap' | 'balanced' | 'best'; force_whisper: boolean }
+export interface JobOptions { language: string; quality: 'cheap' | 'balanced' | 'best'; force_whisper: boolean; analyze_visuals: boolean }
 
 async function json<T>(respPromise: Promise<Response>): Promise<T> {
   const resp = await respPromise
@@ -35,6 +40,7 @@ export const uploadJob = (file: File, options: JobOptions) => {
   form.append('language', options.language)
   form.append('quality', options.quality)
   form.append('force_whisper', String(options.force_whisper))
+  form.append('analyze_visuals', String(options.analyze_visuals))
   return json<{ job_id: string }>(fetch('/api/jobs/upload', { method: 'POST', body: form }))
 }
 

@@ -12,8 +12,10 @@ class FakePipeline:
         self._on_event = on_event
         self._report = report
         self._error = error
+        self.captured_options = None
 
     async def run(self, source, options):
+        self.captured_options = options
         if self._on_event is not None:
             await self._on_event(StageEvent(stage="ingest", type="started"))
         if self._error:
@@ -21,9 +23,12 @@ class FakePipeline:
         return self._report
 
 
-def make_runtime(tmp_path, report=None, error=None):
+def make_runtime(tmp_path, report=None, error=None, pipelines=None):
     def factory(on_event=None):
-        return FakePipeline(on_event, report=report, error=error)
+        pipeline = FakePipeline(on_event, report=report, error=error)
+        if pipelines is not None:
+            pipelines.append(pipeline)
+        return pipeline
 
     return Runtime(pipeline_factory=factory,
                    db_path=tmp_path / "app.db",
@@ -152,3 +157,19 @@ def test_get_trace_returns_spans_and_cost(tmp_path):
     trace = rt.get_trace("trX")
     assert trace["total_cost_usd"] == 0.05
     assert trace["spans"][0]["stage"] == "synthesize"
+
+
+@pytest.mark.asyncio
+async def test_analyze_threads_analyze_visuals(tmp_path):
+    pipelines = []
+    rt = make_runtime(tmp_path, report=SAMPLE_REPORT, pipelines=pipelines)
+    await rt.analyze(url="https://youtu.be/x", analyze_visuals=True)
+    assert pipelines[0].captured_options.analyze_visuals is True
+
+
+@pytest.mark.asyncio
+async def test_extract_chapters_threads_analyze_visuals(tmp_path):
+    pipelines = []
+    rt = make_runtime(tmp_path, report=REPORT_WITH_CHAPTERS, pipelines=pipelines)
+    await rt.extract_chapters(url="https://youtu.be/x", analyze_visuals=True)
+    assert pipelines[0].captured_options.analyze_visuals is True

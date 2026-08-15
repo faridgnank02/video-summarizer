@@ -13,6 +13,8 @@ tasks:
     cheap:    ["openai/gpt-4o-mini", "anthropic/claude-haiku-4-5"]
     balanced: ["anthropic/claude-sonnet-5", "openai/gpt-4o"]
     best:     ["anthropic/claude-opus-5", "openai/gpt-4o"]
+  visual_description:
+    best:     ["anthropic/claude-sonnet-5", "openai/gpt-4o"]
 
 pricing:  # USD per million tokens; local models omitted (cost 0)
   openai/gpt-4o-mini: {input_per_mtok: 0.15, output_per_mtok: 0.60}
@@ -20,3 +22,8 @@ pricing:  # USD per million tokens; local models omitted (cost 0)
   anthropic/claude-haiku-4-5: {input_per_mtok: 1.00, output_per_mtok: 5.00}
   anthropic/claude-sonnet-5: {input_per_mtok: 3.00, output_per_mtok: 15.00}
   anthropic/claude-opus-5: {input_per_mtok: 5.00, output_per_mtok: 25.00}
+
+visual:              # frame-sampling defaults for the Visual agent
+  scene_threshold: 0.4
+  max_frames: 24
+  min_interval_s: 8

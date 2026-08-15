@@ -6,13 +6,14 @@ export default function SubmitForm({ onSubmitted }: { onSubmitted: (jobId: strin
   const [file, setFile] = useState<File | null>(null)
   const [quality, setQuality] = useState<JobOptions['quality']>('balanced')
   const [language, setLanguage] = useState('en')
+  const [analyzeVisuals, setAnalyzeVisuals] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true); setError(null)
-    const options: JobOptions = { language, quality, force_whisper: false }
+    const options: JobOptions = { language, quality, force_whisper: false, analyze_visuals: analyzeVisuals }
     try {
       const { job_id } = file ? await uploadJob(file, options) : await createJob(url, options)
       onSubmitted(job_id)
@@ -47,6 +48,11 @@ export default function SubmitForm({ onSubmitted }: { onSubmitted: (jobId: strin
           <option value="en">English</option>
           <option value="fr">Français</option>
         </select>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={analyzeVisuals}
+                 onChange={(e) => setAnalyzeVisuals(e.target.checked)} />
+          Analyze visuals
+        </label>
         <button disabled={busy || (!url && !file)}
                 className="rounded-lg bg-slate-900 px-4 py-1.5 text-white disabled:opacity-40">
           {busy ? 'Submitting…' : 'Analyze'}

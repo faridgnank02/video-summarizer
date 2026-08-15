@@ -4,7 +4,7 @@ from src.video_intelligence.agents.synthesizer import PartialSummary, Synthesize
 from src.video_intelligence.models.router import Router
 from src.video_intelligence.schemas import (
     Chapter, JobOptions, KeyQuote, PipelineContext, QualityPreference, SourceKind,
-    Transcript, TranscriptOrigin, TranscriptSegment, VideoSource,
+    Transcript, TranscriptOrigin, TranscriptSegment, VideoSource, VisualArtifact, VisualKind,
 )
 from src.video_intelligence.tracing import TraceStore
 from tests.fakes import FakeProvider
@@ -89,3 +89,25 @@ async def test_report_carries_degraded_stages(tmp_path):
     ctx = await synth.run(ctx)
     assert ctx.report.chapters == []
     assert ctx.report.degraded_stages == ["chapterize"]
+
+
+async def test_visual_highlights_injected_and_attached(tmp_path):
+    synth, fake = make(tmp_path)
+    fake.enqueue(RESULT)
+    ctx = ctx_with_transcript(10)
+    ctx.visual_artifacts = [
+        VisualArtifact(timestamp_s=30.0, kind=VisualKind.SLIDE, text="Roadmap 2026"),
+        VisualArtifact(timestamp_s=90.0, kind=VisualKind.CHART, text="",
+                       description="a revenue bar chart"),
+    ]
+    ctx = await synth.run(ctx)
+    assert "Roadmap 2026" in fake.calls[0]["prompt"]
+    assert "a revenue bar chart" in fake.calls[0]["prompt"]
+    assert len(ctx.report.visual_highlights) == 2
+
+
+async def test_no_visuals_leaves_highlights_empty(tmp_path):
+    synth, fake = make(tmp_path)
+    fake.enqueue(RESULT)
+    ctx = await synth.run(ctx_with_transcript(10))
+    assert ctx.report.visual_highlights == []

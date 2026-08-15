@@ -1,12 +1,32 @@
 import pytest
 from pydantic import BaseModel
 
-from src.video_intelligence.models.providers.base import ProviderError, Usage, parse_json_response
+from src.video_intelligence.models.providers.base import (
+    NotSupported,
+    Provider,
+    ProviderError,
+    Usage,
+    parse_json_response,
+)
 from tests.fakes import FakeProvider
 
 
 class Answer(BaseModel):
     value: int
+
+
+class _MinimalProvider(Provider):
+    name = "min"
+    async def is_available(self):
+        return True
+    async def complete(self, model, prompt, schema):
+        raise NotImplementedError
+
+
+async def test_complete_vision_defaults_to_not_supported():
+    p = _MinimalProvider()
+    with pytest.raises(NotSupported):
+        await p.complete_vision("m", "p", [b"img"], Usage)
 
 
 def test_parse_json_response_extracts_embedded_object():

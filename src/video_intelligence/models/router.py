@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from ..schemas import QualityPreference, TraceSpan
 from ..tracing import TraceStore
-from .providers.base import Provider, ProviderError, Usage
+from .providers.base import NotSupported, Provider, ProviderError, Usage
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -75,3 +75,31 @@ class Router:
             fallback_from = candidate
         self._store.add_span(trace_id, TraceSpan(stage=stage, model_used="none", status="error"))
         raise RouterError(f"all candidates failed for task={task}: {'; '.join(errors)}")
+
+    async def complete_vision(self, *, task: str, quality: QualityPreference, prompt: str,
+                              images: list[bytes], schema: type[T], trace_id: str,
+                              stage: str) -> T:
+        fallback_from: str | None = None
+        errors: list[str] = []
+        for candidate in self.candidates(task, quality):
+            provider_name, model = candidate.split("/", 1)
+            provider = self._providers.get(provider_name)
+            if provider is None or not await provider.is_available():
+                errors.append(f"{candidate}: unavailable")
+                fallback_from = candidate
+                continue
+            start = time.monotonic()
+            try:
+                parsed, usage = await provider.complete_vision(model, prompt, images, schema)
+            except ProviderError as e:  # includes NotSupported
+                errors.append(f"{candidate}: {e}")
+                fallback_from = candidate
+                continue
+            self._store.add_span(trace_id, TraceSpan(
+                stage=stage, model_used=candidate, tokens_in=usage.tokens_in,
+                tokens_out=usage.tokens_out, cost_usd=self._cost(candidate, usage),
+                latency_ms=int((time.monotonic() - start) * 1000), status="ok",
+                fallback_from=fallback_from))
+            return parsed
+        self._store.add_span(trace_id, TraceSpan(stage=stage, model_used="none", status="error"))
+        raise RouterError(f"all vision candidates failed for task={task}: {'; '.join(errors)}")
