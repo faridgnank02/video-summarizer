@@ -80,3 +80,30 @@ async def test_empty_transcript_no_events_empty_summary(tmp_path):
     assert [e for e in events if e.type == "summary"] == []
     assert report.summary == ""
     assert fake.calls == []
+
+
+async def test_consolidation_fallback_keeps_last_digest(tmp_path):
+    summ, fake, events = make(tmp_path)
+    fake.enqueue(RollingResult(summary="delta0"))  # window0 delta (digest empty -> adopts delta0)
+    fake.enqueue(ProviderError("boom"))            # consolidate attempt 1
+    fake.enqueue(ProviderError("boom"))            # consolidate attempt 2 -> RouterError
+    report = await summ.run(feed_of([(0, 11)]), "tr1")
+    summaries = [e for e in events if e.type == "summary"]
+    assert len(summaries) == 1
+    assert summaries[0].data["running_summary"] == "delta0"
+    assert report.summary == "delta0"
+
+
+async def test_gap_then_recover_across_windows(tmp_path):
+    summ, fake, events = make(tmp_path)
+    fake.enqueue(ProviderError("boom"))            # window0 delta fails (initial)
+    fake.enqueue(ProviderError("boom"))            # window0 delta retry -> RouterError, gap event
+    fake.enqueue(RollingResult(summary="delta1"))  # window1 delta (prior digest still "" -> adopts delta1)
+    fake.enqueue(RollingResult(summary="final"))   # consolidate
+    report = await summ.run(feed_of([(0, 11), (11, 22)]), "tr1")
+    summaries = [e for e in events if e.type == "summary"]
+    assert len(summaries) == 2
+    assert summaries[0].data["delta"] == "(summary unavailable for this window)"
+    assert summaries[0].data["running_summary"] == ""
+    assert summaries[1].data["running_summary"] == "delta1"
+    assert report.summary == "final"

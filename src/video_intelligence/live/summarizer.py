@@ -77,12 +77,19 @@ class RollingSummarizer:
         try:
             delta = await self._complete(DELTA_PROMPT.replace("<<TEXT>>", text),
                                          "rolling.delta", trace_id)
-            digest = delta if not prev_digest else await self._complete(
-                FOLD_PROMPT.replace("<<DIGEST>>", prev_digest).replace("<<DELTA>>", delta),
-                "rolling.fold", trace_id)
         except RouterError:
             delta = "(summary unavailable for this window)"
             digest = prev_digest
+        else:
+            if not prev_digest:
+                digest = delta
+            else:
+                try:
+                    digest = await self._complete(
+                        FOLD_PROMPT.replace("<<DIGEST>>", prev_digest).replace("<<DELTA>>", delta),
+                        "rolling.fold", trace_id)
+                except RouterError:
+                    digest = prev_digest
         await self._emit(RollingSummary(
             window_index=index, window_start_s=segs[0].start_s,
             window_end_s=segs[-1].end_s, delta=delta, running_summary=digest))
