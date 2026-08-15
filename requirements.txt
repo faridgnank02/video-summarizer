@@ -10,6 +10,9 @@ youtube-transcript-api>=1.0
 faster-whisper>=1.0
 rapidocr-onnxruntime>=1.3
 
+# Fact-checking search
+ddgs>=6.0
+
 # Cloud providers
 openai>=1.40
 anthropic>=0.34

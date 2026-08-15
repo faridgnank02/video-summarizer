@@ -7,9 +7,11 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from src.api.jobs import JobStore
+from src.video_intelligence.agents.factchecker import build_factchecker
 from src.video_intelligence.pipeline import PipelineError, build_pipeline
 from src.video_intelligence.schemas import (
-    JobOptions, QualityPreference, SourceKind, StageEvent, TraceSpan, VideoSource,
+    AnalysisReport, JobOptions, QualityPreference, SourceKind, StageEvent, TraceSpan,
+    VideoSource,
 )
 from src.video_intelligence.tracing import TraceStore
 
@@ -25,9 +27,11 @@ _background_tasks: set[asyncio.Task] = set()
 
 class Runtime:
     def __init__(self, pipeline_factory=build_pipeline,
+                 checker_factory=build_factchecker,
                  db_path: str | Path = "data/app.db",
                  trace_db: str | Path = "data/traces.db"):
         self.factory = pipeline_factory
+        self.checker_factory = checker_factory
         self.jobs = JobStore(db_path)
         self.traces = TraceStore(trace_db)
 
@@ -53,7 +57,7 @@ class Runtime:
     async def analyze(self, url: str, quality: str = "balanced",
                       language: str = "en", force_whisper: bool = False,
                       analyze_visuals: bool = False,
-                      async_: bool = False,
+                      fact_check: bool = False, async_: bool = False,
                       on_event: EventCallback | None = None) -> dict:
         try:
             quality_pref = QualityPreference(quality)
@@ -63,7 +67,8 @@ class Runtime:
         options = JobOptions(language=language,
                              quality=quality_pref,
                              force_whisper=force_whisper,
-                             analyze_visuals=analyze_visuals)
+                             analyze_visuals=analyze_visuals,
+                             fact_check=fact_check)
         job_id = uuid.uuid4().hex
         self.jobs.create(job_id, source, options)
         if async_:
@@ -73,6 +78,45 @@ class Runtime:
             task.add_done_callback(_background_tasks.discard)
             return {"status": "running", "job_id": job_id}
         return await self._execute(job_id, source, options, on_event or _noop)
+
+    async def fact_check(self, job_id: str | None = None, url: str | None = None,
+                         claims: list[str] | None = None, quality: str = "balanced",
+                         language: str = "en",
+                         on_event: EventCallback | None = None) -> dict:
+        provided = [x is not None for x in (job_id, url, claims)]
+        if sum(provided) != 1:
+            return {"status": "failed",
+                    "reason": "provide exactly one of job_id, url, or claims"}
+        try:
+            quality_pref = QualityPreference(quality)
+        except ValueError:
+            return {"status": "failed", "reason": f"invalid quality: {quality!r}"}
+
+        if url is not None:
+            result = await self.analyze(url=url, quality=quality, language=language,
+                                        fact_check=False, async_=False,
+                                        on_event=on_event)
+            if result.get("status") != "completed":
+                return result
+            report = AnalysisReport.model_validate(result["report"])
+            checker = self.checker_factory()
+            report.fact_checks = await checker.run(report, None, quality_pref,
+                                                    report.trace_id)
+            self.jobs.update(result["job_id"], report=report)
+            return report.model_dump()
+        if claims is not None:
+            checker = self.checker_factory()
+            results = await checker.check(claims, quality_pref, uuid.uuid4().hex)
+            return {"fact_checks": [fc.model_dump() for fc in results]}
+
+        job = self.jobs.get(job_id)
+        if job is None or job["report"] is None:
+            return {"status": "failed", "reason": "no completed report for job_id"}
+        report = AnalysisReport.model_validate(job["report"])
+        checker = self.checker_factory()
+        report.fact_checks = await checker.run(report, None, quality_pref, report.trace_id)
+        self.jobs.update(job_id, report=report)
+        return {"fact_checks": [fc.model_dump() for fc in report.fact_checks]}
 
     def _trace_footer(self, trace_id: str) -> dict:
         spans = self.traces.spans(trace_id)

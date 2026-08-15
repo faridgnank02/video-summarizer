@@ -1,6 +1,6 @@
 # tests/test_schemas.py
 from src.video_intelligence.schemas import (
-    AnalysisReport, JobOptions, PipelineContext, QualityPreference,
+    AnalysisReport, Claim, ClaimVerdict, Evidence, FactCheck, JobOptions, PipelineContext, QualityPreference,
     SourceKind, Transcript, TranscriptOrigin, TranscriptSegment, VideoSource,
     VisualArtifact, VisualKind,
 )
@@ -64,3 +64,25 @@ def test_pipeline_context_visual_fields_default_none():
         source=VideoSource(kind=SourceKind.YOUTUBE, url="u"), options=JobOptions())
     assert ctx.video_path is None
     assert ctx.visual_artifacts is None
+
+
+def test_factcheck_defaults_and_verdict_enum():
+    fc = FactCheck(claim="The sky is blue", verdict=ClaimVerdict.SUPPORTED,
+                   rationale="Rayleigh scattering.")
+    assert fc.verdict == "supported"
+    assert fc.evidence == []
+    assert fc.search_steps == 0
+    assert fc.timestamp_s is None
+
+
+def test_claim_and_evidence_shapes():
+    c = Claim(text="X happened in 2020")
+    assert c.timestamp_s is None
+    ev = Evidence(title="T", url="https://e.com", snippet="s")
+    assert ev.url == "https://e.com"
+
+
+def test_report_and_options_gain_factcheck_fields():
+    report = AnalysisReport(summary="s", language="en", trace_id="t")
+    assert report.fact_checks == []
+    assert JobOptions().fact_check is False

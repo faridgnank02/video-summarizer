@@ -83,14 +83,16 @@ def create_app(pipeline_factory=build_pipeline,
                          language: str = Form("en"),
                          quality: str = Form("balanced"),
                          force_whisper: bool = Form(False),
-                         analyze_visuals: bool = Form(False)) -> dict:
+                         analyze_visuals: bool = Form(False),
+                         fact_check: bool = Form(False)) -> dict:
         upload_dir.mkdir(parents=True, exist_ok=True)
         safe_name = Path(file.filename or "upload").name or "upload"
         dest = upload_dir / f"{uuid.uuid4().hex}-{safe_name}"
         dest.write_bytes(await file.read())
         source = VideoSource(kind=SourceKind.LOCAL_FILE, path=str(dest), title=file.filename)
         options = JobOptions(language=language, quality=QualityPreference(quality),
-                             force_whisper=force_whisper, analyze_visuals=analyze_visuals)
+                             force_whisper=force_whisper, analyze_visuals=analyze_visuals,
+                             fact_check=fact_check)
         return _start_job(background, source, options)
 
     @app.get("/api/jobs/{job_id}")

@@ -4,6 +4,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from src.video_intelligence.models.providers.base import Provider, Usage
+from src.video_intelligence.search.base import SearchProvider, SearchResult
 
 
 class FakeProvider(Provider):
@@ -25,3 +26,21 @@ class FakeProvider(Provider):
         if isinstance(item, Exception):
             raise item
         return item, Usage(tokens_in=100, tokens_out=50)
+
+
+class FakeSearch(SearchProvider):
+    def __init__(self, name: str = "fakesearch", available: bool = True):
+        self.name = name
+        self._available = available
+        self._queue: list[list[SearchResult]] = []
+        self.calls: list[dict] = []
+
+    def enqueue(self, results: list[SearchResult]) -> None:
+        self._queue.append(results)
+
+    async def is_available(self) -> bool:
+        return self._available
+
+    async def search(self, query: str, k: int) -> list[SearchResult]:
+        self.calls.append({"query": query, "k": k})
+        return self._queue.pop(0) if self._queue else []
