@@ -50,6 +50,16 @@ cd frontend && npm install && npm run dev
 Open http://localhost:5173, paste a YouTube URL, pick a quality tier, and
 watch the pipeline stages stream in.
 
+## Run with Docker
+
+```bash
+cp .env.example .env   # add your OPENAI_API_KEY / ANTHROPIC_API_KEY
+docker compose up -d --build
+```
+
+Then open http://localhost/. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for
+the optional local-model profile and the AWS follow-up.
+
 ## Configuration
 
 All model choices live in `config/models.yaml` — candidates per task and
