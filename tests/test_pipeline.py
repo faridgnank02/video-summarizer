@@ -118,10 +118,12 @@ def test_build_pipeline_includes_visual_stage(tmp_path):
     assert visual._max_frames == 10
 
 
-async def test_factchecker_agent_runs_last_and_is_optional():
+def test_factchecker_agent_runs_last_and_is_optional(tmp_path):
     from src.video_intelligence.pipeline import build_pipeline
-    # Structural check: the production pipeline lists five agents ending in fact_check.
-    import inspect
-    src = inspect.getsource(build_pipeline)
-    assert "FactCheckerAgent" in src
-    assert src.index("Synthesizer") < src.index("FactCheckerAgent")
+    pipeline = build_pipeline(config_path="config/models.yaml",
+                              db_path=str(tmp_path / "t.db"),
+                              workdir=str(tmp_path / "work"))
+    names = [type(a).__name__ for a in pipeline._agents]
+    assert names[-1] == "FactCheckerAgent"
+    assert names.index("Synthesizer") < names.index("FactCheckerAgent")
+    assert pipeline._agents[-1].essential is False

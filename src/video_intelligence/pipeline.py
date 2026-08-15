@@ -50,10 +50,10 @@ def build_pipeline(config_path: str = "config/models.yaml",
                    on_event: EventCallback | None = None) -> Pipeline:
     """Wire the production pipeline: real providers, router, and agents."""
     from .agents.chapterizer import Chapterizer
+    from .agents.factchecker import FactChecker, FactCheckerAgent, build_search_router
     from .agents.ingestor import Ingestor
     from .agents.synthesizer import Synthesizer
     from .agents.transcriber import Transcriber
-    from .agents.factchecker import FactChecker, FactCheckerAgent, build_search_router
     from .agents.visualizer import Visualizer
     from .models.providers.anthropic import AnthropicProvider
     from .models.providers.ollama import OllamaProvider
