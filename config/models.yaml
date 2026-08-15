@@ -24,11 +24,18 @@ tasks:
     cheap:    ["ollama/llama3.1:8b", "openai/gpt-4o-mini"]
     balanced: ["anthropic/claude-haiku-4-5", "openai/gpt-4o-mini"]
     best:     ["anthropic/claude-sonnet-5"]
+  rolling:
+    cheap:    ["ollama/llama3.1:8b", "openai/gpt-4o-mini"]
+    balanced: ["anthropic/claude-haiku-4-5", "openai/gpt-4o-mini"]
+    best:     ["anthropic/claude-sonnet-5"]
 
 fact_check:            # bounded-loop caps (cost control)
   max_claims: 8
   max_steps: 3
   results_per_search: 5
+
+live:
+  window_s: 60          # content-seconds per rolling window
 
 pricing:  # USD per million tokens; local models omitted (cost 0)
   openai/gpt-4o-mini: {input_per_mtok: 0.15, output_per_mtok: 0.60}

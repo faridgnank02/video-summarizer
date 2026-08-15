@@ -1,7 +1,8 @@
 # tests/test_schemas.py
 from src.video_intelligence.schemas import (
-    AnalysisReport, Claim, ClaimVerdict, Evidence, FactCheck, JobOptions, PipelineContext, QualityPreference,
-    SourceKind, Transcript, TranscriptOrigin, TranscriptSegment, VideoSource,
+    AnalysisReport, Claim, ClaimVerdict, Evidence, FactCheck, JobOptions,
+    PipelineContext, QualityPreference, RollingSummary, SourceKind, StageEvent,
+    Transcript, TranscriptOrigin, TranscriptSegment, VideoSource,
     VisualArtifact, VisualKind,
 )
 
@@ -86,3 +87,20 @@ def test_report_and_options_gain_factcheck_fields():
     report = AnalysisReport(summary="s", language="en", trace_id="t")
     assert report.fact_checks == []
     assert JobOptions().fact_check is False
+
+
+def test_stage_event_data_defaults_none_and_roundtrips():
+    assert StageEvent(stage="live", type="summary").data is None
+    ev = StageEvent(stage="live", type="summary", message="digest",
+                    data={"window_index": 0})
+    assert ev.model_dump()["data"] == {"window_index": 0}
+
+
+def test_job_options_live_defaults_false():
+    assert JobOptions().live is False
+
+
+def test_rolling_summary_shape():
+    rs = RollingSummary(window_index=1, window_start_s=0.0, window_end_s=60.0,
+                        delta="new bit", running_summary="so far")
+    assert rs.window_index == 1 and rs.running_summary == "so far"

@@ -45,6 +45,19 @@ class Pipeline:
         return ctx.report
 
 
+def _build_router(config: dict, store: "TraceStore") -> "Router":
+    from .models.providers.anthropic import AnthropicProvider
+    from .models.providers.ollama import OllamaProvider
+    from .models.providers.openai import OpenAIProvider
+    from .models.router import Router
+    providers = {
+        "ollama": OllamaProvider(),
+        "openai": OpenAIProvider(),
+        "anthropic": AnthropicProvider(),
+    }
+    return Router(config, providers, store)
+
+
 def build_pipeline(config_path: str = "config/models.yaml",
                    db_path: str = "data/traces.db",
                    workdir: str = "data/work",
@@ -56,20 +69,12 @@ def build_pipeline(config_path: str = "config/models.yaml",
     from .agents.synthesizer import Synthesizer
     from .agents.transcriber import Transcriber
     from .agents.visualizer import Visualizer
-    from .models.providers.anthropic import AnthropicProvider
-    from .models.providers.ollama import OllamaProvider
-    from .models.providers.openai import OpenAIProvider
-    from .models.router import Router, load_model_config
+    from .models.router import load_model_config
     from .tracing import TraceStore
 
     config = load_model_config(config_path)
     store = TraceStore(db_path)
-    providers = {
-        "ollama": OllamaProvider(),
-        "openai": OpenAIProvider(),
-        "anthropic": AnthropicProvider(),
-    }
-    router = Router(config, providers, store)
+    router = _build_router(config, store)
     whisper_model = config.get("transcription", {}).get("whisper_model", "base")
     visual_cfg = config.get("visual", {})
     caps = config.get("fact_check", {})
@@ -91,6 +96,32 @@ def build_pipeline(config_path: str = "config/models.yaml",
             ),
             Synthesizer(router),
             FactCheckerAgent(factchecker),
+        ],
+        on_event=on_event,
+    )
+
+
+def build_live_pipeline(config_path: str = "config/models.yaml",
+                        db_path: str = "data/traces.db",
+                        workdir: str = "data/work",
+                        on_event: EventCallback | None = None) -> Pipeline:
+    """Wire the live pipeline: Ingestor -> Transcriber -> RollingSummarizerAgent."""
+    from .agents.ingestor import Ingestor
+    from .agents.rolling import RollingSummarizerAgent
+    from .agents.transcriber import Transcriber
+    from .models.router import load_model_config
+    from .tracing import TraceStore
+
+    config = load_model_config(config_path)
+    store = TraceStore(db_path)
+    router = _build_router(config, store)
+    whisper_model = config.get("transcription", {}).get("whisper_model", "base")
+    window_s = config.get("live", {}).get("window_s", 60)
+    return Pipeline(
+        [
+            Ingestor(workdir=workdir),
+            Transcriber(model_name=whisper_model),
+            RollingSummarizerAgent(router, on_event=on_event, window_s=window_s),
         ],
         on_event=on_event,
     )

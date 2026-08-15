@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from src.api.main import create_app
 from src.video_intelligence.pipeline import PipelineError
-from src.video_intelligence.schemas import AnalysisReport, StageEvent, TraceSpan
+from src.video_intelligence.schemas import AnalysisReport, RollingSummary, StageEvent, TraceSpan
 from src.video_intelligence.tracing import TraceStore
 
 
@@ -37,6 +37,57 @@ def make_client(tmp_path, report=None, error=None, captured_options=None):
 
 
 SAMPLE_REPORT = AnalysisReport(summary="Great.", language="en", trace_id="tr1")
+
+
+class FakeLivePipeline:
+    def __init__(self, on_event, report):
+        self._on_event = on_event
+        self._report = report
+
+    async def run(self, source, options):
+        await self._on_event(StageEvent(
+            stage="live", type="summary", message="rolling",
+            data=RollingSummary(window_index=0, window_start_s=0.0, window_end_s=10.0,
+                                delta="d", running_summary="rolling").model_dump()))
+        return self._report
+
+
+def test_live_flag_selects_live_factory(tmp_path):
+    live_report = AnalysisReport(summary="LIVE", language="en", trace_id="trL")
+
+    def batch_factory(on_event=None):
+        return FakePipeline(on_event, report=AnalysisReport(
+            summary="BATCH", language="en", trace_id="trB"))
+
+    def live_factory(on_event=None):
+        return FakeLivePipeline(on_event, report=live_report)
+
+    app = create_app(pipeline_factory=batch_factory,
+                     live_pipeline_factory=live_factory,
+                     db_path=tmp_path / "app.db",
+                     trace_db=tmp_path / "traces.db",
+                     upload_dir=tmp_path / "uploads")
+    client = TestClient(app)
+    job_id = client.post("/api/jobs", json={
+        "url": "https://youtu.be/x", "options": {"live": True}}).json()["job_id"]
+    job = client.get(f"/api/jobs/{job_id}").json()
+    assert job["report"]["summary"] == "LIVE"
+
+
+def test_default_flag_uses_batch_factory(tmp_path):
+    def batch_factory(on_event=None):
+        return FakePipeline(on_event, report=AnalysisReport(
+            summary="BATCH", language="en", trace_id="trB"))
+
+    def live_factory(on_event=None):
+        raise AssertionError("live factory must not be used for a batch job")
+
+    app = create_app(pipeline_factory=batch_factory, live_pipeline_factory=live_factory,
+                     db_path=tmp_path / "app.db", trace_db=tmp_path / "traces.db",
+                     upload_dir=tmp_path / "uploads")
+    client = TestClient(app)
+    job_id = client.post("/api/jobs", json={"url": "https://youtu.be/x"}).json()["job_id"]
+    assert client.get(f"/api/jobs/{job_id}").json()["report"]["summary"] == "BATCH"
 
 
 def test_create_job_then_completed_report(tmp_path):
