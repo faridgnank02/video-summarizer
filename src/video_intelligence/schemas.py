@@ -30,6 +30,13 @@ class QualityPreference(StrEnum):
     BEST = "best"
 
 
+class ClaimVerdict(StrEnum):
+    SUPPORTED = "supported"
+    REFUTED = "refuted"
+    MISLEADING = "misleading"
+    UNVERIFIED = "unverified"
+
+
 class VideoSource(BaseModel):
     kind: SourceKind
     url: str | None = None
@@ -76,6 +83,27 @@ class KeyQuote(BaseModel):
     text: str
 
 
+class Claim(BaseModel):
+    text: str
+    timestamp_s: float | None = None
+
+
+class Evidence(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+
+class FactCheck(BaseModel):
+    claim: str
+    timestamp_s: float | None = None
+    verdict: ClaimVerdict
+    confidence: float | None = None
+    rationale: str
+    evidence: list[Evidence] = Field(default_factory=list)
+    search_steps: int = 0
+
+
 class AnalysisReport(BaseModel):
     summary: str
     chapters: list[Chapter] = Field(default_factory=list)
@@ -85,6 +113,7 @@ class AnalysisReport(BaseModel):
     trace_id: str
     degraded_stages: list[str] = Field(default_factory=list)
     visual_highlights: list[VisualArtifact] = Field(default_factory=list)
+    fact_checks: list[FactCheck] = Field(default_factory=list)
 
 
 class TraceSpan(BaseModel):
@@ -103,6 +132,7 @@ class JobOptions(BaseModel):
     quality: QualityPreference = QualityPreference.BALANCED
     force_whisper: bool = False
     analyze_visuals: bool = False
+    fact_check: bool = False
 
 
 class StageEvent(BaseModel):
