@@ -10,7 +10,7 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadF
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.video_intelligence.pipeline import PipelineError, build_pipeline
+from src.video_intelligence.pipeline import PipelineError, build_live_pipeline, build_pipeline
 from src.video_intelligence.schemas import (
     JobOptions, QualityPreference, SourceKind, StageEvent, VideoSource,
 )
@@ -25,6 +25,7 @@ class CreateJobRequest(BaseModel):
 
 
 def create_app(pipeline_factory=build_pipeline,
+               live_pipeline_factory=build_live_pipeline,
                db_path: str | Path = "data/app.db",
                trace_db: str | Path = "data/traces.db",
                upload_dir: str | Path = "data/uploads") -> FastAPI:
@@ -40,7 +41,8 @@ def create_app(pipeline_factory=build_pipeline,
         async def on_event(ev: StageEvent) -> None:
             await queue.put(ev)
 
-        pipeline = pipeline_factory(on_event=on_event)
+        factory = live_pipeline_factory if options.live else pipeline_factory
+        pipeline = factory(on_event=on_event)
         store.update(job_id, status="running")
         try:
             report = await pipeline.run(source, options)
@@ -84,7 +86,8 @@ def create_app(pipeline_factory=build_pipeline,
                          quality: str = Form("balanced"),
                          force_whisper: bool = Form(False),
                          analyze_visuals: bool = Form(False),
-                         fact_check: bool = Form(False)) -> dict:
+                         fact_check: bool = Form(False),
+                         live: bool = Form(False)) -> dict:
         upload_dir.mkdir(parents=True, exist_ok=True)
         safe_name = Path(file.filename or "upload").name or "upload"
         dest = upload_dir / f"{uuid.uuid4().hex}-{safe_name}"
@@ -92,7 +95,7 @@ def create_app(pipeline_factory=build_pipeline,
         source = VideoSource(kind=SourceKind.LOCAL_FILE, path=str(dest), title=file.filename)
         options = JobOptions(language=language, quality=QualityPreference(quality),
                              force_whisper=force_whisper, analyze_visuals=analyze_visuals,
-                             fact_check=fact_check)
+                             fact_check=fact_check, live=live)
         return _start_job(background, source, options)
 
     @app.get("/api/jobs/{job_id}")
